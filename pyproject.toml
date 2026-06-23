@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "photonhub"
+version = "0.0.1"
+description = "Python client for the PhotonHub GPU FDTD photonics solver"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "numpy",
+    "scipy",
+    "xarray",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+viz = ["plotly"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["photonhub"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

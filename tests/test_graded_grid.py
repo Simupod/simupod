@@ -4,15 +4,15 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub import (
+import simupod as ph
+from simupod import (
     GaussianPulse,
     GradedAxisCoords,
     GradedGridSpec,
     PointDipole,
     Simulation,
 )
-from photonhub.components.grid import graded_primary_spacings
+from simupod.components.grid import graded_primary_spacings
 
 
 def _stretched(n, dl0=0.025, ratio=1.04):
@@ -103,7 +103,7 @@ def test_two_axes_graded():
 
 
 def _real_solver():
-    from photonhub.runners.local import find_solver
+    from simupod.runners.local import find_solver
     try:
         return find_solver()
     except ph.SolverRunError:
@@ -115,7 +115,7 @@ def _real_solver():
 def test_graded_sim_runs_end_to_end(tmp_path):
     """Full stack: a graded-z sim built in Python runs through the real
     phsolver and its manifest carries the §15.10 coordinate arrays."""
-    from photonhub.components import FieldTimeMonitor
+    from simupod.components import FieldTimeMonitor
     z = _stretched(28)
     sim = Simulation(
         size_um=(0.8, 0.8, 2.0),

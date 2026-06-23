@@ -1,4 +1,4 @@
-"""Mode tracking (``photonhub.plugins.mode_tracking``) — overlap matching and
+"""Mode tracking (``simupod.plugins.mode_tracking``) — overlap matching and
 crossing-aware labeling.
 
 The load-bearing test is a controllable **n_eff crossing**: two weakly-coupled
@@ -13,14 +13,14 @@ the easy case.
 import numpy as np
 import pytest
 
-from photonhub.plugins import eme
-from photonhub.plugins.mode_tracking import (
+from simupod.plugins import eme
+from simupod.plugins.mode_tracking import (
     match_modes,
     reorder_to_tracks,
     track_modes,
     transverse_overlap,
 )
-from photonhub.plugins.vector_modes import VectorModeSolver
+from simupod.plugins.vector_modes import VectorModeSolver
 
 WL_UM = 1.31
 DL_UM = 0.05

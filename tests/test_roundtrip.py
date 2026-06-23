@@ -6,7 +6,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-import photonhub as ph
+import simupod as ph
 
 
 def test_example_parses_and_roundtrips(example_spec_path):

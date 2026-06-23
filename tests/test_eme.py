@@ -1,6 +1,6 @@
 """Minimal eigenmode-expansion (EME) propagator — correctness invariants.
 
-Validates ``photonhub.plugins.eme`` on the building blocks (star product,
+Validates ``simupod.plugins.eme`` on the building blocks (star product,
 interface, propagation) and end-to-end on a straight guide and a tapered guide.
 The load-bearing checks are *internal physics invariants* that hold regardless of
 mesh accuracy:
@@ -21,7 +21,7 @@ above it because a guided-mode basis cannot radiate (documented in the module).
 import numpy as np
 import pytest
 
-from photonhub.plugins.eme import (
+from simupod.plugins.eme import (
     EMEResult,
     cascade,
     interface_smatrix,

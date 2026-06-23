@@ -1,4 +1,4 @@
-"""Tests for the visualization layer (photonhub.viz; design §10).
+"""Tests for the visualization layer (simupod.viz; design §10).
 
 Forces the matplotlib Agg backend before any pyplot import so the smoke matrix
 runs headless. No golden-image diffs — structural assertions only.
@@ -14,8 +14,8 @@ import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import xarray as xr  # noqa: E402
 
-import photonhub as ph  # noqa: E402
-from photonhub.viz import eps as epsmod  # noqa: E402
+import simupod as ph  # noqa: E402
+from simupod.viz import eps as epsmod  # noqa: E402
 
 AXES = ("x", "y", "z")
 
@@ -355,7 +355,7 @@ def test_new_shapes_plot_eps_and_field_smoke():
     from matplotlib.axes import Axes
     from matplotlib.patches import Annulus, Polygon
 
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
 
     for builder in (cylinder_scene, polyslab_scene):
         sim = builder()
@@ -379,7 +379,7 @@ def test_source_overlay_present_iff_source_in_plane():
     sim = dipole_vacuum()  # dipole at z=0.5
     ax = sim.plot(z=0.5)
     # A coral 'o' marker line is added for the source.
-    from photonhub.viz._style import SOURCE_COLOR
+    from simupod.viz._style import SOURCE_COLOR
     src_lines = [ln for ln in ax.lines
                  if ln.get_color() == SOURCE_COLOR and ln.get_marker() == "o"]
     assert len(src_lines) == 1
@@ -395,7 +395,7 @@ def test_monitor_overlay_present_iff_monitor():
     and intersects the plane."""
     from matplotlib.patches import Rectangle
 
-    from photonhub.viz._style import MONITOR_COLOR
+    from simupod.viz._style import MONITOR_COLOR
 
     sim = fresnel_slab()  # DFT monitor centered at z=0.7, size z=0 (a plane)
     ax = sim.plot(x=0.2)  # x-cut: in-plane axes (y,z); the z=0 plane is a line
@@ -414,7 +414,7 @@ def test_monitor_overlay_present_iff_monitor():
 
 def test_pml_band_count_matches_boundaries():
     """PML bands == (# in-plane PML axes) × 2 faces; periodic axes skipped."""
-    from photonhub.viz._style import pml_bands
+    from simupod.viz._style import pml_bands
 
     sim = fresnel_slab()  # x,y periodic; z pml
     # z-cut: in-plane axes (x, y) are both periodic -> no bands.
@@ -430,7 +430,7 @@ def test_pml_band_count_matches_boundaries():
 
 
 def test_pml_band_thickness_uses_layers_and_spacing():
-    from photonhub.viz._style import pml_bands
+    from simupod.viz._style import pml_bands
 
     sim = sphere_scene()  # uniform dl=0.05, all PML, default pml_num_layers=12
     bands = pml_bands(sim, "z")
@@ -520,7 +520,7 @@ def test_plot_field_smoke_each_cut(axis):
                 "x": np.linspace(0, 1, 6)},
         attrs={}, name="vol")
     fd = _FakeData({"vol": da})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     out = plot_field(fd, "vol", field="Ex", structures=False, **{axis: 0.5})
     from matplotlib.axes import Axes
     assert isinstance(out, Axes)
@@ -529,7 +529,7 @@ def test_plot_field_smoke_each_cut(axis):
 
 def test_plot_field_selects_slice_and_colorbar():
     fd = _FakeData({"slab": _dft_array()})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     ax = plot_field(fd, "slab", field="Ez", z=0.5, val="real", structures=False)
     # Colorbar present.
     assert len(ax.figure.axes) >= 2
@@ -544,14 +544,14 @@ def test_plot_field_selects_slice_and_colorbar():
 ])
 def test_plot_field_components_and_derived(field, val):
     fd = _FakeData({"slab": _dft_array()})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     ax = plot_field(fd, "slab", field=field, val=val, z=0.5, structures=False)
     assert ax.collections
 
 
 def test_plot_field_colormap_selection():
     """Signed -> diverging, magnitude -> sequential, phase -> cyclic (design §7)."""
-    from photonhub.viz._style import field_cmap_and_norm
+    from simupod.viz._style import field_cmap_and_norm
 
     arr = np.array([[-1.0, 1.0], [0.5, -0.5]])
     cmap, norm = field_cmap_and_norm("Ex", "real", arr)
@@ -565,21 +565,21 @@ def test_plot_field_colormap_selection():
 
 def test_plot_field_bad_field_keyerror():
     fd = _FakeData({"slab": _dft_array(components=("Ex", "Ey"))})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     with pytest.raises(KeyError, match="available"):
         plot_field(fd, "slab", field="Hz", z=0.5, structures=False)
 
 
 def test_plot_field_partial_derived_errors():
     fd = _FakeData({"slab": _dft_array(components=("Ex", "Ey"))})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     with pytest.raises(ValueError, match="Ez"):
         plot_field(fd, "slab", field="E", z=0.5, structures=False)
 
 
 def test_plot_field_multifreq_requires_freq():
     fd = _FakeData({"slab": _dft_array(freqs=(1.7e14, 1.934e14))})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     with pytest.raises(ValueError, match="multiple frequencies"):
         plot_field(fd, "slab", field="Ex", z=0.5, structures=False)
     # With freq= it succeeds.
@@ -590,7 +590,7 @@ def test_plot_field_multifreq_requires_freq():
 
 def test_plot_field_unknown_monitor_keyerror():
     fd = _FakeData({"slab": _dft_array()})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     with pytest.raises(KeyError):
         plot_field(fd, "nope", field="Ex", z=0.5, structures=False)
 
@@ -599,7 +599,7 @@ def test_plot_field_structures_overlay_with_simulation():
     """structures=True + simulation= overlays outlines (design §3)."""
     sim = soi_waveguide()
     fd = _FakeData({"slab": _dft_array()})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     ax = plot_field(fd, "slab", field="Ex", z=0.5, structures=True,
                     simulation=sim)
     # Outline patches (unfilled) present from the structures intersecting z=0.5.
@@ -611,10 +611,10 @@ def test_plot_field_structures_overlay_with_simulation():
 
 def test_plot_field_no_geometry_one_time_note():
     """structures=True without geometry warns once, does not raise."""
-    import photonhub.viz.field as fieldmod
+    import simupod.viz.field as fieldmod
     fieldmod._NO_GEOMETRY_NOTED["flag"] = False  # reset the one-time gate
     fd = _FakeData({"slab": _dft_array()})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         plot_field(fd, "slab", field="Ex", z=0.5, structures=True)
@@ -630,7 +630,7 @@ def test_plot_field_val_ignored_for_real_monitor():
                 "y": np.linspace(0, 1, 5), "x": np.linspace(0, 1, 5)},
         attrs={}, name="snap")
     fd = _FakeData({"snap": da})
-    from photonhub.viz import plot_field
+    from simupod.viz import plot_field
     ax = plot_field(fd, "snap", field="Ez", val="phase", z=0.5, structures=False)
     assert ax.collections  # no error; val ignored on real data
 
@@ -645,7 +645,7 @@ def _bend_taper_scene():
     a positive domain. The bend's center of curvature is at (0.2, 0.2) so its
     first-quadrant 90-degree arc (centerline radius 0.5) sweeps into the domain;
     the taper sits in the opposite corner."""
-    from photonhub import library as lib
+    from simupod import library as lib
 
     bend = lib.bend(radius_um=0.5, width_um=0.3, thickness_um=0.22,
                     center_um=(0.2, 0.2, 0.5))
@@ -731,8 +731,8 @@ def test_plot_mode_returns_axes_with_image():
     heatmap (a pcolormesh QuadMesh) at the mode's profile resolution."""
     from matplotlib.axes import Axes
 
-    from photonhub.plugins import ModeSolver
-    from photonhub.viz import plot_mode
+    from simupod.plugins import ModeSolver
+    from simupod.viz import plot_mode
 
     ms = ModeSolver.from_rectangular_core(
         wavelength_um=1.55, dl_um=0.04, core_w_um=0.5, core_h_um=0.22,
@@ -752,8 +752,8 @@ def test_plot_mode_returns_axes_with_image():
 
 
 def test_plot_mode_respects_given_ax():
-    from photonhub.plugins import ModeSolver
-    from photonhub.viz import plot_mode
+    from simupod.plugins import ModeSolver
+    from simupod.viz import plot_mode
 
     ms = ModeSolver.from_rectangular_core(
         wavelength_um=1.55, dl_um=0.05, core_w_um=0.5, core_h_um=0.22,
@@ -772,7 +772,7 @@ def test_plot_spectrum_single_dict():
     """A single {freq_hz: T} mapping -> one trace, x in nm and ascending."""
     from matplotlib.axes import Axes
 
-    from photonhub.viz import plot_spectrum
+    from simupod.viz import plot_spectrum
 
     spec = {1.97e14: 0.88, 1.9e14: 0.90, 1.934e14: 0.95}  # unsorted on purpose
     ax = plot_spectrum(spec)
@@ -789,7 +789,7 @@ def test_plot_spectrum_single_dict():
 
 def test_plot_spectrum_labelled_traces():
     """A {label: {freq_hz: T}} mapping -> one line per label, with a legend."""
-    from photonhub.viz import plot_spectrum
+    from simupod.viz import plot_spectrum
 
     multi = {
         "through": {1.9e14: 0.6, 1.97e14: 0.7},
@@ -807,7 +807,7 @@ def test_plot_spectrum_labelled_traces():
 
 def test_plot_spectrum_freq_to_wavelength():
     """λ_nm = c / f (c = 2.99792458e8): a known frequency maps to its nm."""
-    from photonhub.viz import plot_spectrum
+    from simupod.viz import plot_spectrum
 
     f = 1.934e14
     ax = plot_spectrum({f: 0.5})
@@ -816,7 +816,7 @@ def test_plot_spectrum_freq_to_wavelength():
 
 
 def test_plot_spectrum_empty_raises():
-    from photonhub.viz import plot_spectrum
+    from simupod.viz import plot_spectrum
 
     with pytest.raises(ValueError):
         plot_spectrum({})

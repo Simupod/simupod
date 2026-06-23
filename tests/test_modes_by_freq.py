@@ -7,14 +7,14 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub.plugins import (
+import simupod as ph
+from simupod.plugins import (
     ModeSolver,
     VectorModeSolver,
     mode_monitor,
     solve_modes_by_freq,
 )
-from photonhub.plugins.mode_devices import C0
+from simupod.plugins.mode_devices import C0
 
 DL = 0.04  # um
 N_CORE = 3.5

@@ -25,7 +25,7 @@ def fresnel_spec_path() -> Path:
 
 @pytest.fixture
 def subprocess_env() -> dict:
-    """Environment for `python -m photonhub.schema ...` subprocesses so the
+    """Environment for `python -m simupod.schema ...` subprocesses so the
     in-tree package is importable without installation."""
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PACKAGE_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
@@ -33,7 +33,7 @@ def subprocess_env() -> dict:
 
 
 def make_sim(**overrides):
-    import photonhub as ph
+    import simupod as ph
 
     kwargs = dict(
         size_um=(0.2, 0.2, 0.2),
@@ -62,7 +62,7 @@ def make_sim(**overrides):
 def make_pw_sim(**overrides):
     """Tiny plane-wave simulation (NUMERICS.md section 13): propagation
     along z, transverse axes periodic (required), PML on z."""
-    import photonhub as ph
+    import simupod as ph
 
     kwargs = dict(
         size_um=(0.2, 0.2, 0.4),

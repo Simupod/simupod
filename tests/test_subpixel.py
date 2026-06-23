@@ -6,7 +6,7 @@ C++ test_subpixel.cpp; here we only pin the client/wire surface.
 
 import json
 
-import photonhub as ph
+import simupod as ph
 
 from conftest import make_sim
 

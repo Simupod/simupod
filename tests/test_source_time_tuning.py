@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-import photonhub as ph
+import simupod as ph
 
 # Spec constant (engine kC0 / grid.py / cost.py); the client must match it.
 _C0 = 2.99792458e8

@@ -26,10 +26,10 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from photonhub.plugins import Mode, ModeSolver
-from photonhub.plugins.mode_devices import ModeMonitor
-from photonhub.plugins.mode_overlap import modal_fields
-from photonhub.plugins.smatrix import (
+from simupod.plugins import Mode, ModeSolver
+from simupod.plugins.mode_devices import ModeMonitor
+from simupod.plugins.mode_overlap import modal_fields
+from simupod.plugins.smatrix import (
     SPort,
     assemble_smatrix,
     assert_passive,
@@ -113,7 +113,7 @@ def _stacked_plane(mode: Mode, x, y, waves, *, freqs=(F0,)):
 def _monitor(mode: Mode, name: str, *, out_direction: str) -> ModeMonitor:
     """A bare ModeMonitor for a z-normal port (no Simulation needed — only its
     name/mode/axis are used by the overlap)."""
-    from photonhub.components.monitors import FieldDftMonitor
+    from simupod.components.monitors import FieldDftMonitor
     fm = FieldDftMonitor(
         name=name, center_um=(0.0, 0.0, 0.0), size_um=(2.0, 2.0, 0.0),
         fields=_TANGENTIAL_Z, freqs_hz=(F0,))

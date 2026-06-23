@@ -1,12 +1,12 @@
 # photonhub
 
 Python client for the PhotonHub FDTD solver. The pydantic models in
-`photonhub.components` are the single source of truth for the simulation
+`simupod.components` are the single source of truth for the simulation
 JSON wire format (`schemas/GOVERNANCE.md`); `schemas/simulation_v1.json` is
-generated from them via `python -m photonhub.schema emit`.
+generated from them via `python -m simupod.schema emit`.
 
 ```python
-import photonhub as ph
+import simupod as ph
 
 sim = ph.Simulation(
     size_um=(4.0, 4.0, 4.0),
@@ -50,7 +50,7 @@ gallery under `examples/`):
   and `FluxMonitor` — fp64 DFT field and flux power.
 - **Component library:** `ph.library.straight / bend / taper / crossing /
   coupler / ring` — each returns a `Component` (structures + ports) in ~one line.
-- **Mode-resolved transmission:** the `photonhub.plugins` pipeline —
+- **Mode-resolved transmission:** the `simupod.plugins` pipeline —
   `ModeSolver` → `mode_source` → `mode_monitor` → `transmission(out, in, data)`
   returns `{freq_hz: T}`. Broadband: one Gaussian-pulse run yields the whole
   `T(λ)` spectrum via the running DFT. One-mode-at-a-time power transmission, not
@@ -61,8 +61,8 @@ gallery under `examples/`):
   waveguides) for `n_eff` and mode profiles.
 - **Visualization:** `Simulation.plot` / `plot_eps` (draws Box / Sphere /
   Cylinder / PolySlab) / `plot_3d`, `SimulationData.plot_field`, and the
-  module-level `photonhub.viz.plot_mode` (FDE mode heatmap) and
-  `photonhub.viz.plot_spectrum` (`T` vs λ).
+  module-level `simupod.viz.plot_mode` (FDE mode heatmap) and
+  `simupod.viz.plot_spectrum` (`T` vs λ).
 - **Export:** HDF5 converter for the parsed results.
 - **Correctness aids:** capability gating rejects unsupported features at
   construction; optional volume-fraction subpixel smoothing (Box / Cylinder /

@@ -1,5 +1,5 @@
 """CVCS — continuously-varying-cross-section EME via mode interpolation
-(``photonhub.plugins.cvcs``).
+(``simupod.plugins.cvcs``).
 
 Three things are validated:
 
@@ -19,9 +19,9 @@ from functools import lru_cache
 import numpy as np
 import pytest
 
-from photonhub.plugins import eme
-from photonhub.plugins.cvcs import cvcs_sections, interpolate_mode, interpolate_plane
-from photonhub.plugins.mode_tracking import transverse_overlap
+from simupod.plugins import eme
+from simupod.plugins.cvcs import cvcs_sections, interpolate_mode, interpolate_plane
+from simupod.plugins.mode_tracking import transverse_overlap
 
 WL_UM = 1.31
 DL_UM = 0.05

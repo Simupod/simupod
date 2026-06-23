@@ -1,7 +1,7 @@
 """Full-vector, 1 W power-normalized mode source (NUMERICS.md §18, WS2).
 
 Covers the Python pipeline that turns a full-vector ``VectorMode`` into a
-power-normalized :class:`~photonhub.components.sources.ModeSource` carrying BOTH
+power-normalized :class:`~simupod.components.sources.ModeSource` carrying BOTH
 transverse-E components:
 
 * 1 W power normalization (the injected modal Poynting flux integrates to the
@@ -19,14 +19,14 @@ import math
 import numpy as np
 import pytest
 
-import photonhub as ph
-from photonhub.plugins import (
+import simupod as ph
+from simupod.plugins import (
     ModeSolver,
     VectorModeSolver,
     mode_source,
     mode_source_vector,
 )
-from photonhub.plugins.mode_overlap import ETA0, _cell_widths, vector_modal_fields
+from simupod.plugins.mode_overlap import ETA0, _cell_widths, vector_modal_fields
 
 F0 = 1.934e14  # Hz, ~1.55 um
 DL = 0.04  # um

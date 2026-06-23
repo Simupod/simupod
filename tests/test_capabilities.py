@@ -1,4 +1,4 @@
-"""Capability gating (photonhub.capabilities): representable-but-unsupported
+"""Capability gating (simupod.capabilities): representable-but-unsupported
 features fail at MODEL CONSTRUCTION with an "available in <version>" message,
 never at engine submission — and the client's pinned view of the engine's
 ``--capabilities`` manifest cannot silently drift from the real binary.
@@ -7,9 +7,9 @@ never at engine submission — and the client's pinned view of the engine's
 import pytest
 from pydantic import ValidationError
 
-import photonhub as ph
-from photonhub import capabilities as caps
-from photonhub.components.grid import GradedAxisCoords, GradedGridSpec
+import simupod as ph
+from simupod import capabilities as caps
+from simupod.components.grid import GradedAxisCoords, GradedGridSpec
 
 from conftest import make_pw_sim, make_sim
 

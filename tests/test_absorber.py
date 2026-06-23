@@ -5,7 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-import photonhub as ph
+import simupod as ph
 
 from conftest import make_sim
 

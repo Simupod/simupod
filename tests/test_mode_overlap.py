@@ -1,6 +1,6 @@
 """Directional-power mode-overlap (mode-monitor transmission) — physics pins.
 
-Validates ``photonhub.plugins.mode_overlap.mode_transmission`` on SYNTHETIC
+Validates ``simupod.plugins.mode_overlap.mode_transmission`` on SYNTHETIC
 field planes (no FDTD run): a plane that *is* the mode -> forward T==1, the
 opposite-direction plane -> forward T==0 / backward T==1, an orthogonal profile
 -> T<1, amplitude scaling -> T scales by |c|^2, and a graded (non-uniform)
@@ -20,8 +20,8 @@ import functools
 import pytest
 import xarray as xr
 
-from photonhub.plugins import Mode, ModeSolver
-from photonhub.plugins.mode_overlap import (
+from simupod.plugins import Mode, ModeSolver
+from simupod.plugins.mode_overlap import (
     ETA0,
     _colocate_to_node,
     mode_transmission as _mode_transmission,
@@ -430,8 +430,8 @@ def test_resample_zero_fills_outside_window():
 # (n_eff/eta0)·z_hat x e), _overlap_terms projects with vector_modal_fields.
 # These pin that dispatch on SYNTHETIC planes built from the vector mode itself.
 
-from photonhub.plugins.vector_modes import VectorModeSolver  # noqa: E402
-from photonhub.plugins.mode_overlap import vector_modal_fields  # noqa: E402
+from simupod.plugins.vector_modes import VectorModeSolver  # noqa: E402
+from simupod.plugins.mode_overlap import vector_modal_fields  # noqa: E402
 
 
 @pytest.fixture(scope="module")

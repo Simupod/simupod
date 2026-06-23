@@ -8,7 +8,7 @@ construction-time rejections that mirror the engine's validate().
 
 import pytest
 
-import photonhub as ph
+import simupod as ph
 from conftest import make_sim, make_pw_sim
 
 

@@ -6,8 +6,8 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub.runners.local import find_solver
+import simupod as ph
+from simupod.runners.local import find_solver
 
 
 def _cyl(**kw):

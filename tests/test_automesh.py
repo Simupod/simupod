@@ -18,9 +18,9 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub import auto_grid
-from photonhub.components.grid import (
+import simupod as ph
+from simupod import auto_grid
+from simupod.components.grid import (
     GRADED_RATIO_GUARD,
     GradedGridSpec,
     graded_primary_spacings,
@@ -505,7 +505,7 @@ def test_refine_region_mesh_freeze_deterministic():
 # --------------------------------------------------------------------------- #
 
 def test_simulation_with_auto_grid_convenience():
-    from photonhub.components.grid import GradedGridSpec as _GGS
+    from simupod.components.grid import GradedGridSpec as _GGS
 
     LX, LY, LZ = 2.0, 2.0, 4.0
     core = _box((LX / 2, LY / 2, LZ / 2), (0.45, 0.22, LZ * 2), eps=12.25)

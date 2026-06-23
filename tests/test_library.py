@@ -1,13 +1,13 @@
 """Geometry-level tests for the parametric PIC component library
-(``photonhub.library``). No engine run — we assert only that each builder
+(``simupod.library``). No engine run — we assert only that each builder
 emits the expected primitive geometry and the right ports."""
 
 import math
 
 import pytest
 
-from photonhub.components.structures import Box, Cylinder, Medium, PolySlab
-from photonhub.library import (
+from simupod.components.structures import Box, Cylinder, Medium, PolySlab
+from simupod.library import (
     SILICON,
     Component,
     Port,
@@ -135,7 +135,7 @@ def test_taper_polyslab_widths():
 
 
 def taper_call():
-    from photonhub.library import taper
+    from simupod.library import taper
 
     return taper(length_um=8.0, width1_um=0.4, width2_um=1.0, center_um=(0, 0, 0))
 

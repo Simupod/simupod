@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-import photonhub as ph
+import simupod as ph
 from conftest import make_sim
 from test_run_local import FAKE_DIVERGES, FAKE_OK, fake_solver
 

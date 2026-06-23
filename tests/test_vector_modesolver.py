@@ -1,7 +1,7 @@
 """Full-vectorial FDE solver (VectorModeSolver / VectorMode) — physics + frozen
 API surface.
 
-Validates ``photonhub.plugins.VectorModeSolver`` on the canonical SOI strip: the
+Validates ``simupod.plugins.VectorModeSolver`` on the canonical SOI strip: the
 full-vector fundamental quasi-TE ``n_eff ~= 2.71`` (the design-doc FDTD cross-check
 was 2.70; the semi-vec self-value 2.72 slightly over-confines), a quasi-TM mode
 below it, the group index, and the six-component field surface. The load-bearing
@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from photonhub.plugins import VectorMode, VectorModeSolver
+from simupod.plugins import VectorMode, VectorModeSolver
 
 WL_UM = 1.31
 DL_UM = 0.025
@@ -357,8 +357,8 @@ def test_bend_rejects_zero_radius(bend_solver):
 # --- exports (additive; the frozen semi-vec surface is untouched) ----------
 
 def test_exports_are_additive():
-    import photonhub.plugins as plugins
+    import simupod.plugins as plugins
     assert {"VectorMode", "VectorModeSolver", "Mode", "ModeSolver"} <= set(
         plugins.__all__)
-    from photonhub.plugins import Mode, ModeSolver  # the frozen surface still works
+    from simupod.plugins import Mode, ModeSolver  # the frozen surface still works
     assert Mode is not None and ModeSolver is not None

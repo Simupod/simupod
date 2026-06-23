@@ -1,4 +1,4 @@
-"""GDS import (:mod:`photonhub.gds`): polygons -> extruded PolySlab structures.
+"""GDS import (:mod:`simupod.gds`): polygons -> extruded PolySlab structures.
 
 Each test authors a tiny GDSII file in a tmp dir with ``gdstk`` (the same reader
 :func:`import_gds` uses), so no external fixtures are needed. Skipped wholesale
@@ -8,8 +8,8 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub.gds import GdsLayer, import_gds, read_gds_cell_names
+import simupod as ph
+from simupod.gds import GdsLayer, import_gds, read_gds_cell_names
 
 gdstk = pytest.importorskip("gdstk")
 

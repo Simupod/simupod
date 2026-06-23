@@ -10,8 +10,8 @@ import textwrap
 import numpy as np
 import pytest
 
-import photonhub as ph
-from photonhub.runners.local import find_solver
+import simupod as ph
+from simupod.runners.local import find_solver
 
 FAKE_OK = textwrap.dedent("""\
     #!{python}
@@ -199,7 +199,7 @@ FAKE_REPORT_LOG = textwrap.dedent("""\
 
 class TestDevice:
     def test_device_args_builds_flag(self):
-        from photonhub.runners.local import _device_args
+        from simupod.runners.local import _device_args
         assert _device_args(None) == []
         assert _device_args("cpu") == ["--device", "cpu"]
         assert _device_args("gpu") == ["--device", "gpu"]
@@ -208,7 +208,7 @@ class TestDevice:
 
     @pytest.mark.parametrize("bad", ["tpu", "gpu:", "gpu:x", "GPU", "", "cpu:0"])
     def test_device_args_rejects_bad(self, bad):
-        from photonhub.runners.local import _device_args
+        from simupod.runners.local import _device_args
         with pytest.raises(ph.SolverRunError, match="invalid device"):
             _device_args(bad)
 

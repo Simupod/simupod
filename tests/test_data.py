@@ -5,7 +5,7 @@ import json
 import numpy as np
 import pytest
 
-from photonhub.data import SimulationData
+from simupod.data import SimulationData
 
 DT = 9.53e-17
 DL_UM = 0.25

@@ -8,11 +8,11 @@ import pytest
 
 from conftest import REPO_ROOT
 
-import photonhub.schema as phs
+import simupod.schema as phs
 
 
 def _run(args, env):
-    return subprocess.run([sys.executable, "-m", "photonhub.schema", *args],
+    return subprocess.run([sys.executable, "-m", "simupod.schema", *args],
                           capture_output=True, text=True, env=env)
 
 
@@ -61,7 +61,7 @@ def test_committed_schema_is_in_sync():
     if not committed.is_file():
         pytest.skip("not running from a repo checkout")
     assert committed.read_text(encoding="utf-8") == phs.schema_text(), (
-        "schemas/simulation_v1.json is stale; run 'python -m photonhub.schema emit'")
+        "schemas/simulation_v1.json is stale; run 'python -m simupod.schema emit'")
 
 
 def test_schema_is_as_strict_as_the_implementations():

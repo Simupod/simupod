@@ -1,6 +1,6 @@
 """Near-to-far-field (NTFF) projection — physics pins.
 
-Validates ``photonhub.plugins.near_field.far_field`` on SYNTHETIC near-field
+Validates ``simupod.plugins.near_field.far_field`` on SYNTHETIC near-field
 surfaces (no FDTD run): the near fields are built analytically as xarray
 DataArrays shaped like a real ``field_dft`` monitor slice (dims
 ``f/component/z/y/x``), projected, and the far-field pattern is asserted against
@@ -52,8 +52,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from photonhub.plugins import FarField, far_field
-from photonhub.plugins.near_field import C0, ETA0, _TANGENTIAL, _TRANSVERSE
+from simupod.plugins import FarField, far_field
+from simupod.plugins.near_field import C0, ETA0, _TANGENTIAL, _TRANSVERSE
 
 WL_UM = 1.0
 F0 = C0 / (WL_UM * 1e-6)        # Hz

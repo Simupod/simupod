@@ -12,13 +12,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import photonhub as ph
-from photonhub.runners.batch import BatchData, Job
-from photonhub.runners.local import SolverRunError
+import simupod as ph
+from simupod.runners.batch import BatchData, Job
+from simupod.runners.local import SolverRunError
 
-# the `run` submodule (the name `photonhub.web.run` is shadowed by the run
+# the `run` submodule (the name `simupod.web.run` is shadowed by the run
 # function re-export, so reach the module object explicitly)
-_runmod = importlib.import_module("photonhub.web.run")
+_runmod = importlib.import_module("simupod.web.run")
 
 
 def _bundle_bytes() -> bytes:
@@ -198,7 +198,7 @@ def test_cancelled_job_raises_solverrunerror(monkeypatch, configured):
 
 # --- cache._safe_extract path-traversal guard -----------------------------
 
-from photonhub.web import cache as _cache  # noqa: E402
+from simupod.web import cache as _cache  # noqa: E402
 
 
 def _tar_with_member(name: str) -> bytes:
@@ -234,7 +234,7 @@ def test_safe_extract_accepts_normal_bundle(tmp_path):
 
 # --- config env-var precedence (configure / get_config) -------------------
 
-from photonhub.web import config as _config  # noqa: E402
+from simupod.web import config as _config  # noqa: E402
 
 
 def test_configure_explicit_overrides_env(monkeypatch):
@@ -278,7 +278,7 @@ def test_configure_missing_key_raises_weberror(monkeypatch):
 
 # --- client error -> WebError mapping -------------------------------------
 
-from photonhub.web.client import HttpClient, _parse_detail  # noqa: E402
+from simupod.web.client import HttpClient, _parse_detail  # noqa: E402
 import urllib.error  # noqa: E402
 import urllib.request  # noqa: E402
 

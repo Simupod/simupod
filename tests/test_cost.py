@@ -1,4 +1,4 @@
-"""Pre-run cost / memory / time estimate (photonhub.cost).
+"""Pre-run cost / memory / time estimate (simupod.cost).
 
 The dollar figure is the contract ("estimate in dollars before you press
 run"), so these pin it exactly against the engine-faithful cell/dt/step math;
@@ -10,9 +10,9 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub.components.grid import realized_cells
-from photonhub.cost import (
+import simupod as ph
+from simupod.components.grid import realized_cells
+from simupod.cost import (
     DEFAULT_RATE_USD_PER_TCELL_STEP,
     DEFAULT_THROUGHPUT_GCELLS_PER_S,
     estimate_cost,

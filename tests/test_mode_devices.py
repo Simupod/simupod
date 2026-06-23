@@ -7,16 +7,16 @@ import math
 
 import pytest
 
-import photonhub as ph
-from photonhub import auto_grid
-from photonhub.components.grid import (
+import simupod as ph
+from simupod import auto_grid
+from simupod.components.grid import (
     GradedAxisCoords,
     GradedGridSpec,
     graded_primary_spacings,
 )
-from photonhub.plugins import ModeSolver, mode_monitor, mode_source, transmission
-from photonhub.plugins.mode_devices import _axis_cell_centers
-from photonhub.runners.local import find_solver
+from simupod.plugins import ModeSolver, mode_monitor, mode_source, transmission
+from simupod.plugins.mode_devices import _axis_cell_centers
+from simupod.runners.local import find_solver
 
 F0 = 1.934e14  # Hz, ~1.55 um
 DL = 0.04  # um
@@ -300,7 +300,7 @@ def test_mode_source_graded_propagation_axis_is_rejected():
     """The §18 aux line is 1-D along the propagation axis at the scalar dl, so a
     GRADED propagation axis is rejected by the engine (only the transverse plane
     may grade)."""
-    from photonhub.runners.local import SolverRunError
+    from simupod.runners.local import SolverRunError
 
     base = _waveguide_sim()
     lz = base["size_um"][2]

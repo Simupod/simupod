@@ -16,7 +16,8 @@ Phase-4 GUI can call these headless (design §12).
 
 from .eps import plot_eps
 from .field import plot_field
-from .interactive import interactive_preview, render_slice
+from .interactive import (interactive_field, interactive_preview,
+                          render_field_slice, render_slice)
 from .mode import plot_mode
 from .scene import plot
 from .scene3d import plot_3d
@@ -25,4 +26,4 @@ from .spectrum import plot_spectrum
 
 __all__ = ["plot", "plot_eps", "plot_field", "plot_3d", "plot_mode",
            "plot_source_time", "plot_spectrum", "interactive_preview",
-           "render_slice"]
+           "render_slice", "interactive_field", "render_field_slice"]

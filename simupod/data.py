@@ -262,6 +262,15 @@ class SimulationData:
                            val=val, structures=structures, simulation=simulation,
                            ax=ax, cmap=cmap, **kw)
 
+    def preview(self, monitor, *, simulation=None):
+        """Interactive Jupyter scrubber over a recorded field monitor: component,
+        real/imag/abs/phase, frequency, and (volumetric monitors) the cut plane,
+        with optional structure outlines (``simulation=``). Requires the
+        ``simupod[viz]`` extra and a notebook. See
+        :func:`simupod.viz.interactive_field`."""
+        from .viz import interactive_field as _interactive_field
+        return _interactive_field(self, monitor, simulation=simulation)
+
     # -- internals ----------------------------------------------------------
 
     def _grid_dl_um(self) -> float:

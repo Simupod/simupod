@@ -32,15 +32,15 @@ def _available_components(da) -> list:
     return []
 
 
-def _component_array(da, field: str, freq, val: str):
+def _component_array(da, field: str, freq, val: str, time=None):
     """Reduce the DataArray to a real 2D-ready numpy array for ``field``,
     resolving the frequency/time selection, the derived magnitudes, and the
     complex ``val`` projection. Returns ``(values_da, used_val)`` where
     ``values_da`` is a DataArray still carrying its spatial coords."""
     available = _available_components(da)
 
-    # Resolve the sample/frequency selection down to a single slice.
-    da = _select_sample(da, freq)
+    # Resolve the sample/frequency/time selection down to a single slice.
+    da = _select_sample(da, freq, time)
 
     if field in ("E", "H", "intensity"):
         comps = _E_COMPONENTS if field in ("E", "intensity") else _H_COMPONENTS
@@ -84,10 +84,12 @@ def _phase(comp):
     return out
 
 
-def _select_sample(da, freq):
+def _select_sample(da, freq, time=None):
     """Collapse the frequency ('f') or time ('t') dim to a single slice.
     Multi-frequency DFT with no ``freq=`` -> ValueError listing the freqs
-    (design §9); a single value selects implicitly."""
+    (design §9); a single value selects implicitly. ``time=`` (seconds) picks a
+    recorded sample on time data, nearest; without it, time data defaults to the
+    last frame (the snapshot use)."""
     if "f" in da.dims:
         freqs = [float(v) for v in da.coords["f"].values]
         if freq is None:
@@ -99,8 +101,9 @@ def _select_sample(da, freq):
             )
         return da.sel(f=freq, method="nearest")
     if "t" in da.dims:
-        # Time-domain: default to the last recorded sample (the snapshot use).
-        return da.isel(t=-1)
+        if time is None:
+            return da.isel(t=-1)   # default: last recorded sample (snapshot)
+        return da.sel(t=time, method="nearest")
     return da
 
 
@@ -168,18 +171,19 @@ def _orient(remaining):
 
 
 def plot_field(data, monitor, field="Ex", x=None, y=None, z=None, *,
-               freq=None, val="real", structures=True, simulation=None,
-               ax=None, cmap=None, legend=True, **kw):
+               freq=None, time=None, val="real", structures=True,
+               simulation=None, ax=None, cmap=None, legend=True, **kw):
     """Heatmap of a field component on a 2D slice of ``data[monitor]``.
 
-    ``data`` is a :class:`SimulationData`; ``monitor`` is its key. See the
-    module docstring and design §3 for the parameter semantics. Returns the
-    matplotlib ``Axes``."""
+    ``data`` is a :class:`SimulationData`; ``monitor`` is its key. ``freq=``
+    picks a frequency on a DFT monitor; ``time=`` (seconds) picks a recorded
+    sample on a time/snapshot monitor (default: the last frame). See the module
+    docstring and design §3 for the rest. Returns the matplotlib ``Axes``."""
     import matplotlib.pyplot as plt
 
     da = data[monitor]  # KeyError (with available list) for an unknown monitor.
 
-    values, used_val = _component_array(da, field, freq, val)
+    values, used_val = _component_array(da, field, freq, val, time)
     h_coord, v_coord, arr2d, (h_letter, v_letter) = _reduce_to_plane(
         values, x, y, z)
 

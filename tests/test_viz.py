@@ -259,6 +259,62 @@ def test_interactive_preview_builds():
     assert len(ui.children) == 3      # axis+slider row, ε+grid row, output area
 
 
+def test_render_field_slice_pure():
+    """render_field_slice draws a field frame (the pure field-scrubber core)."""
+    from matplotlib.axes import Axes
+
+    from simupod.viz import render_field_slice
+    fd = _FakeData({"slab": _dft_array()})           # planar monitor (z singleton)
+    assert isinstance(render_field_slice(fd, "slab", field="Ex", val="real"), Axes)
+
+
+def test_interactive_field_builds_planar_and_volumetric():
+    """interactive_field wires widgets for both planar and volumetric fields,
+    adding freq + cut controls only when the data warrants them."""
+    widgets = pytest.importorskip("ipywidgets")
+
+    from simupod.viz import interactive_field
+    # planar, single-frequency: just field + part rows (+ output)
+    flat = interactive_field(_FakeData({"slab": _dft_array()}), "slab")
+    assert isinstance(flat, widgets.Widget)
+    # volumetric + multi-frequency: a freq slider and a cut axis+slider appear
+    vol = xr.DataArray(
+        (np.random.RandomState(2).randn(2, 3, 5, 5, 5)).astype(np.complex64),
+        dims=("f", "component", "z", "y", "x"),
+        coords={"f": [1.8e14, 2.0e14], "component": ["Ex", "Ey", "Ez"],
+                "z": np.linspace(0, 1, 5), "y": np.linspace(0, 1, 5),
+                "x": np.linspace(0, 1, 5)}, name="vol")
+    assert isinstance(interactive_field(_FakeData({"vol": vol}), "vol"),
+                      widgets.Widget)
+
+
+def test_interactive_field_animates_time_monitor():
+    """A time/snapshot monitor gets a Play button + time slider, and time=
+    selects a specific recorded frame."""
+    widgets = pytest.importorskip("ipywidgets")
+
+    from matplotlib.axes import Axes
+    from simupod.viz import interactive_field, render_field_slice
+    nt, n = 4, 6
+    snap = xr.DataArray(
+        np.random.RandomState(3).randn(nt, 3, n, n, n).astype(np.float32),
+        dims=("t", "component", "z", "y", "x"),
+        coords={"t": np.linspace(0.0, 3e-14, nt), "component": ["Ex", "Ey", "Ez"],
+                "z": np.linspace(0, 1, n), "y": np.linspace(0, 1, n),
+                "x": np.linspace(0, 1, n)}, name="snap")
+    fd = _FakeData({"snap": snap})
+    ui = interactive_field(fd, "snap")
+
+    def _walk(w):
+        yield w
+        for c in getattr(w, "children", ()):
+            yield from _walk(c)
+    assert any(isinstance(w, widgets.Play) for w in _walk(ui))   # animation control
+    t1 = float(snap.coords["t"].values[1])
+    assert isinstance(render_field_slice(fd, "snap", field="Ez", time=t1,
+                                         axis="z", value=0.5), Axes)
+
+
 # --------------------------------------------------------------------------- #
 # Structural assertions (design §10).
 # --------------------------------------------------------------------------- #

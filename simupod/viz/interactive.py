@@ -83,3 +83,126 @@ def interactive_preview(sim, *, axis: str = "z", eps: bool = True,
     render()
     return widgets.VBox([widgets.HBox([axis_dd, pos]),
                          widgets.HBox([eps_cb, grid_cb]), out])
+
+
+def render_field_slice(data, monitor, *, field="Ex", val="real", freq=None,
+                       time=None, axis=None, value=None, structures=False,
+                       simulation=None, ax=None):
+    """Render one field-preview frame via :func:`plot_field` — the pure,
+    testable core of :func:`interactive_field`. ``axis``/``value`` pick the cut
+    plane for a volumetric monitor; ``freq=``/``time=`` pick the DFT frequency /
+    time frame. Omit the cut for an already-planar monitor."""
+    from .field import plot_field
+    cut = {axis: value} if axis is not None and value is not None else {}
+    return plot_field(data, monitor, field=field, val=val, freq=freq, time=time,
+                      structures=structures, simulation=simulation, ax=ax, **cut)
+
+
+def _field_component_options(da):
+    """Selectable field options for a recorded array: its stored components plus
+    the derived magnitudes (``E``/``intensity`` when all of Ex/Ey/Ez are
+    present, ``H`` when all of Hx/Hy/Hz are)."""
+    comps = ([str(c) for c in da.coords["component"].values]
+             if "component" in da.coords else [])
+    extra = []
+    if {"Ex", "Ey", "Ez"} <= set(comps):
+        extra += ["E", "intensity"]
+    if {"Hx", "Hy", "Hz"} <= set(comps):
+        extra += ["H"]
+    return comps + extra
+
+
+def interactive_field(data, monitor, *, simulation=None):
+    """A Jupyter scrubber over a recorded field monitor: field component,
+    real/imag/abs/phase, frequency (DFT monitors) or a time slider + Play button
+    for field-propagation animation (time/snapshot monitors), and (for a
+    volumetric monitor) the cut plane, with optional structure outlines. Returns
+    the ipywidgets container. Requires the ``simupod[viz]`` extra and a notebook."""
+    widgets = _require_ipywidgets()
+    import matplotlib.pyplot as plt
+
+    da = data[monitor]
+    comps = _field_component_options(da) or ["Ex"]
+    field_dd = widgets.Dropdown(options=comps, value=comps[0], description="field")
+    val_dd = widgets.Dropdown(options=["real", "imag", "abs", "phase"],
+                              value="real", description="part")
+    rows = [widgets.HBox([field_dd, val_dd])]
+
+    freq_w = None
+    if "f" in da.coords and da.sizes.get("f", 1) > 1:
+        freqs = [float(f) for f in da.coords["f"].values]
+        freq_w = widgets.SelectionSlider(
+            options=[(f"{f * 1e-12:.1f} THz", f) for f in freqs], value=freqs[0],
+            description="freq")
+
+    # Time/snapshot monitor -> a time slider + a Play button (field-propagation
+    # animation). Play scrubs the slider via a jslink on its index.
+    time_w = play = None
+    if "t" in da.coords and da.sizes.get("t", 1) > 1:
+        times = [float(t) for t in da.coords["t"].values]
+        time_w = widgets.SelectionSlider(
+            options=[(f"{t * 1e15:.1f} fs", t) for t in times], value=times[0],
+            description="time")
+        play = widgets.Play(min=0, max=len(times) - 1, step=1, interval=200)
+        widgets.jslink((play, "value"), (time_w, "index"))
+
+    spatial = [a for a in ("x", "y", "z") if a in da.dims]
+    thick = [a for a in spatial if da.sizes[a] > 1]
+    singleton = [a for a in spatial if da.sizes[a] == 1]
+    volumetric = len(thick) == 3
+
+    def _pos_opts(a):
+        return [(f"{float(c):.3f}", float(c)) for c in da.coords[a].values]
+
+    axis_dd = pos = None
+    if volumetric:
+        axis_dd = widgets.Dropdown(options=thick, value=thick[-1], description="cut")
+        pos = widgets.SelectionSlider(options=_pos_opts(axis_dd.value),
+                                      description="µm")
+
+    sample_row = [w for w in (freq_w, play, time_w) if w is not None]
+    cut_row = [w for w in (axis_dd, pos) if w is not None]
+    for r in (sample_row, cut_row):
+        if r:
+            rows.append(widgets.HBox(r))
+
+    struct_cb = None
+    if simulation is not None:
+        struct_cb = widgets.Checkbox(value=True, description="structures")
+        rows.append(struct_cb)
+
+    out = widgets.Output()
+
+    def render(*_):
+        from IPython.display import display
+        with out:
+            out.clear_output(wait=True)
+            fig, ax = plt.subplots(figsize=(6.0, 4.5))
+            if volumetric:
+                cut = {"axis": axis_dd.value, "value": pos.value}
+            elif singleton:
+                cut = {"axis": singleton[0],
+                       "value": float(da.coords[singleton[0]].values[0])}
+            else:
+                cut = {}
+            render_field_slice(
+                data, monitor, field=field_dd.value, val=val_dd.value,
+                freq=(freq_w.value if freq_w is not None else None),
+                time=(time_w.value if time_w is not None else None),
+                structures=(struct_cb.value if struct_cb is not None else False),
+                simulation=simulation, ax=ax, **cut)
+            display(fig)
+            plt.close(fig)
+
+    def on_axis(_change):
+        pos.options = _pos_opts(axis_dd.value)
+        render()
+
+    if volumetric:
+        axis_dd.observe(on_axis, names="value")
+    for w in (field_dd, val_dd, freq_w, time_w, pos, struct_cb):
+        if w is not None:
+            w.observe(render, names="value")
+
+    render()
+    return widgets.VBox(rows + [out])

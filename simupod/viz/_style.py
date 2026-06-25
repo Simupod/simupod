@@ -140,6 +140,28 @@ def add_legend(ax, *, source: bool, monitor: bool, pml: bool, structure: bool):
                   framealpha=0.9)
 
 
+def add_structure_patch(ax, kind, params, *, style) -> None:
+    """Add one structure patch for a §5 cut-plane spec
+    (``rect``/``circle``/``polygon``/``annulus``) with the given matplotlib
+    ``style`` dict. Shared by the filled scene view (:func:`scene.plot`) and the
+    field-overlay outlines (:func:`field.plot_field`) so a new geometry kind is
+    added in exactly one place."""
+    from matplotlib.patches import Annulus, Circle, Polygon, Rectangle
+
+    if kind == "rect":
+        x0, y0, w, h = params
+        ax.add_patch(Rectangle((x0, y0), w, h, **style))
+    elif kind == "circle":
+        cx, cy, r = params
+        ax.add_patch(Circle((cx, cy), r, **style))
+    elif kind == "polygon":
+        ax.add_patch(Polygon(params, closed=True, **style))
+    elif kind == "annulus":
+        cx, cy, r_outer, r_inner = params
+        ax.add_patch(Annulus((cx, cy), r_outer, width=r_outer - r_inner,
+                             **style))
+
+
 # --------------------------------------------------------------------------- #
 # PML geometry (shared by the 2D views and the 3D builder).
 # --------------------------------------------------------------------------- #

@@ -240,8 +240,6 @@ def _slice_axis_value(da, x, y, z, h_letter, v_letter, values):
 
 
 def _draw_outlines(ax, sim, axis, value) -> bool:
-    from matplotlib.patches import Annulus, Circle, Polygon, Rectangle
-
     style = dict(fill=False, edgecolor=_style.STRUCTURE_EDGE, linewidth=1.0,
                  zorder=3)
     drew = False
@@ -250,18 +248,7 @@ def _draw_outlines(ax, sim, axis, value) -> bool:
         if spec is None:
             continue
         kind, params = spec
-        if kind == "rect":
-            x0, y0, w, h = params
-            ax.add_patch(Rectangle((x0, y0), w, h, **style))
-        elif kind == "circle":
-            cx, cy, r = params
-            ax.add_patch(Circle((cx, cy), r, **style))
-        elif kind == "polygon":
-            ax.add_patch(Polygon(params, closed=True, **style))
-        elif kind == "annulus":
-            cx, cy, r_outer, r_inner = params
-            ax.add_patch(Annulus((cx, cy), r_outer, width=r_outer - r_inner,
-                                 **style))
+        _style.add_structure_patch(ax, kind, params, style=style)
         drew = True
     return drew
 

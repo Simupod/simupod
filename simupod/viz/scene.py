@@ -10,7 +10,7 @@ No grid, no engine — exact analytic shapes, instant.
 
 import warnings
 
-from matplotlib.patches import Annulus, Circle, Polygon, Rectangle
+from matplotlib.patches import Rectangle
 
 from . import _geometry as geom
 from . import _style
@@ -84,20 +84,9 @@ def plot(sim, x=None, y=None, z=None, *, ax=None, legend=True, grid=False, **kw)
 
 
 def _add_filled_patch(ax, kind, params, color, **kw):
-    """Add one ε-colored, edged structure patch for a §5 cut-plane spec
-    (``rect``/``circle``/``polygon``/``annulus``). Shared so every patch kind
-    gets identical fill/edge/zorder styling."""
+    """Add one ε-colored, edged structure patch for a §5 cut-plane spec.
+    Delegates the kind dispatch to :func:`_style.add_structure_patch` (shared
+    with the field-overlay outlines)."""
     style = dict(facecolor=color, edgecolor=_style.STRUCTURE_EDGE,
                  linewidth=0.8, zorder=2, **kw)
-    if kind == "rect":
-        x0, y0, w, h = params
-        ax.add_patch(Rectangle((x0, y0), w, h, **style))
-    elif kind == "circle":
-        cx, cy, r = params
-        ax.add_patch(Circle((cx, cy), r, **style))
-    elif kind == "polygon":
-        ax.add_patch(Polygon(params, closed=True, **style))
-    elif kind == "annulus":
-        cx, cy, r_outer, r_inner = params
-        ax.add_patch(Annulus((cx, cy), r_outer, width=r_outer - r_inner,
-                             **style))
+    _style.add_structure_patch(ax, kind, params, style=style)

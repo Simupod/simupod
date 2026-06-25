@@ -11,10 +11,11 @@ failing, so the two are never confused.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+from .._env import env
 
 #: Default endpoint; override with url=/$SIMUPOD_URL (e.g. the prod API host).
 DEFAULT_URL = "http://localhost:8000"
@@ -44,15 +45,10 @@ class WebConfig:
 _CONFIG: Optional[WebConfig] = None
 
 
-def _env(suffix: str) -> Optional[str]:
-    """Read ``SIMUPOD_<suffix>``, falling back to the legacy ``PHOTONHUB_<suffix>``."""
-    return os.environ.get(f"SIMUPOD_{suffix}") or os.environ.get(f"PHOTONHUB_{suffix}")
-
-
 def _default_cache_dir() -> Path:
-    env = _env("CACHE_DIR")
-    if env:
-        return Path(env)
+    val = env("CACHE_DIR")
+    if val:
+        return Path(val)
     return Path.home() / ".cache" / "simupod" / "jobs"
 
 
@@ -62,12 +58,12 @@ def configure(api_key: Optional[str] = None, url: Optional[str] = None, *,
               request_timeout_s: float = 30.0) -> WebConfig:
     """Set the active cloud configuration. Returns it for inspection."""
     global _CONFIG
-    key = api_key or _env("API_KEY")
+    key = api_key or env("API_KEY")
     if not key:
         raise WebError(
             "no API key: pass api_key= or set $SIMUPOD_API_KEY "
             "(create one with ph.web.create_api_key after signing in)")
-    base = (url or _env("URL") or DEFAULT_URL).rstrip("/")
+    base = (url or env("URL") or DEFAULT_URL).rstrip("/")
     cache = Path(cache_dir) if cache_dir else _default_cache_dir()
     _CONFIG = WebConfig(
         url=base, api_key=key, cache_dir=cache,
@@ -81,7 +77,7 @@ def get_config() -> WebConfig:
     """The active config, building one from the environment on first use."""
     if _CONFIG is not None:
         return _CONFIG
-    if _env("API_KEY"):
+    if env("API_KEY"):
         return configure()
     raise WebError(
         "simupod.web is not configured; call "

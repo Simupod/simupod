@@ -15,6 +15,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, Union
 
+from .._env import env
 from ..components import Simulation
 from ..data import SimulationData
 from .progress import default_renderer
@@ -53,11 +54,12 @@ def find_solver(solver_path: Union[str, Path, None] = None) -> Optional[Path]:
         if p is None:
             raise SolverRunError(f"solver_path is not an executable file: {solver_path}")
         return p
-    env = os.environ.get("SIMUPOD_SOLVER") or os.environ.get("PHOTONHUB_SOLVER")
-    if env:
-        p = _as_executable(env)
+    override = env("SOLVER")   # $SIMUPOD_SOLVER, legacy $PHOTONHUB_SOLVER
+    if override:
+        p = _as_executable(override)
         if p is None:
-            raise SolverRunError(f"$SIMUPOD_SOLVER is not an executable file: {env}")
+            raise SolverRunError(
+                f"$SIMUPOD_SOLVER is not an executable file: {override}")
         return p
     on_path = shutil.which("phsolver")
     if on_path:

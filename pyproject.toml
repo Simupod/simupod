@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
-viz = ["plotly"]
+test = ["pytest", "plotly", "ipywidgets"]   # so the full viz suite runs in CI, not skips
+viz = ["plotly", "ipywidgets"]              # plotly = 3D; ipywidgets = interactive_preview
 
 [tool.hatch.build.targets.wheel]
 packages = ["simupod"]

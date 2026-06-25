@@ -1,4 +1,4 @@
-# photonhub
+# simupod
 
 Python client for the PhotonHub FDTD solver. The pydantic models in
 `simupod.components` are the single source of truth for the simulation
@@ -28,6 +28,20 @@ sim = ph.Simulation(
 data = ph.run_local(sim)        # finds phsolver, runs it, parses outputs
 probe = data["probe"]           # xarray.DataArray, dims ('t', 'component')
 ```
+
+## See your simulation before you run it
+
+Every `Simulation` plots itself — geometry, sources, monitors, PML, and the
+**permittivity the solver actually meshes** — with matplotlib (built in; plotly
+for 3D). `grid=True` overlays the Yee cell edges so you can check resolution:
+
+```python
+sim.plot(z=0.11)                  # scene cross-section
+sim.plot_eps(z=0.11, grid=True)   # rasterized ε + the Yee mesh overlay
+sim.plot_3d()                     # interactive 3D  (pip install simupod[viz])
+```
+
+![A microring + bus waveguide — left: sim.plot (scene); right: sim.plot_eps(grid=True), the meshed permittivity the solver samples](docs/img/sim_showcase.png)
 
 ## What you can do today
 
@@ -60,9 +74,9 @@ gallery under `examples/`):
 - **Mode solving:** the FDE `ModeSolver` plugin (semi-vectorial, straight
   waveguides) for `n_eff` and mode profiles.
 - **Visualization:** `Simulation.plot` / `plot_eps` (draws Box / Sphere /
-  Cylinder / PolySlab) / `plot_3d`, `SimulationData.plot_field`, and the
-  module-level `simupod.viz.plot_mode` (FDE mode heatmap) and
-  `simupod.viz.plot_spectrum` (`T` vs λ).
+  Cylinder / PolySlab; `grid=True` overlays the Yee mesh) / `plot_3d`,
+  `SimulationData.plot_field`, and the module-level `simupod.viz.plot_mode`
+  (FDE mode heatmap) and `simupod.viz.plot_spectrum` (`T` vs λ).
 - **Export:** HDF5 converter for the parsed results.
 - **Correctness aids:** capability gating rejects unsupported features at
   construction; optional volume-fraction subpixel smoothing (Box / Cylinder /

@@ -157,6 +157,14 @@ class GaussianPulse(FrozenModel):
             fwidth = fwidth_dc_cap
         return cls(freq0_hz=f0, fwidth_hz=fwidth, offset=offset, phase=phase)
 
+    def plot(self, *, ax=None):
+        """Preview the injected current ``J(t)`` (envelope × carrier) and, when
+        building its own figure, the spectral envelope ``|J(f)|`` alongside —
+        the quick check that the pulse covers your band and settles. Returns the
+        time-domain matplotlib ``Axes``. See :func:`simupod.viz.plot_source_time`."""
+        from ..viz.source import plot_source_time
+        return plot_source_time(self, ax=ax)
+
 
 # Single member today; new time dependences slot into the union.
 SourceTimeType = Annotated[Union[GaussianPulse], Field(discriminator="type")]

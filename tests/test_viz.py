@@ -215,6 +215,50 @@ def test_plot_eps_smoke(scene_name, axis):
     assert len(ax.figure.axes) >= 2
 
 
+def test_grid_overlay_draws_cell_edges():
+    """grid=True overlays the realized Yee cell edges on both 2D views (the
+    vlines + hlines add two LineCollections over the base scene/heatmap)."""
+    sim = soi_waveguide()
+    cut = _cut_value(sim, "z")
+    base = len(sim.plot(z=cut).collections)
+    gridded = len(sim.plot(z=cut, grid=True).collections)
+    assert gridded >= base + 2
+    # same flag works on the rasterized-ε view
+    from matplotlib.axes import Axes
+    assert isinstance(sim.plot_eps(z=cut, grid=True), Axes)
+
+
+def test_source_time_plot():
+    """GaussianPulse.plot() previews J(t)+spectrum; ax= draws just the trace."""
+    from matplotlib.axes import Axes
+    src = ph.GaussianPulse(freq0_hz=1.934e14, fwidth_hz=4.0e13)
+    ax = src.plot()
+    assert isinstance(ax, Axes)
+    assert ax.get_title() == "source time"
+    assert len(ax.figure.axes) >= 2           # time + spectrum panels
+    _, given = plt.subplots()
+    assert src.plot(ax=given) is given         # ax= path: single trace on given Axes
+
+
+def test_render_slice_pure():
+    """render_slice draws a frame — the pure, testable core of the scrubber."""
+    from matplotlib.axes import Axes
+
+    from simupod.viz import render_slice
+    sim = soi_waveguide()
+    cut = _cut_value(sim, "z")
+    assert isinstance(render_slice(sim, "z", cut, eps=True, grid=True), Axes)
+    assert isinstance(render_slice(sim, "z", cut, eps=False, grid=False), Axes)
+
+
+def test_interactive_preview_builds():
+    """sim.preview() wires up an ipywidgets container (no live kernel needed)."""
+    widgets = pytest.importorskip("ipywidgets")
+    ui = soi_waveguide().preview()
+    assert isinstance(ui, widgets.Widget)
+    assert len(ui.children) == 3      # axis+slider row, ε+grid row, output area
+
+
 # --------------------------------------------------------------------------- #
 # Structural assertions (design §10).
 # --------------------------------------------------------------------------- #
@@ -879,5 +923,5 @@ def test_plot_3d_import_error_without_plotly(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
-    with pytest.raises(ImportError, match=r"photonhub\[viz\]"):
+    with pytest.raises(ImportError, match=r"simupod\[viz\]"):
         dipole_vacuum().plot_3d()

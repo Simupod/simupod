@@ -16,14 +16,15 @@ from . import _geometry as geom
 from . import _style
 
 
-def plot(sim, x=None, y=None, z=None, *, ax=None, legend=True, **kw):
+def plot(sim, x=None, y=None, z=None, *, ax=None, legend=True, grid=False, **kw):
     """Draw the analytic scene cross-section on the selected cut plane and
     return the matplotlib ``Axes``.
 
     Exactly one of x/y/z (microns) selects the constant-coordinate cut plane;
     not exactly one -> ValueError. A cut outside the domain yields an empty
-    Axes plus a warning (design §9). Extra ``**kw`` is forwarded to each
-    structure patch."""
+    Axes plus a warning (design §9). ``grid=True`` overlays the realized Yee
+    cell edges (the mesh-resolution sanity check). Extra ``**kw`` is forwarded
+    to each structure patch."""
     import matplotlib.pyplot as plt
 
     axis, value = geom.select_plane(x, y, z)
@@ -63,6 +64,9 @@ def plot(sim, x=None, y=None, z=None, *, ax=None, legend=True, **kw):
             kind, params = spec
             _add_filled_patch(ax, kind, params, color, **kw)
             drew_structure = True
+
+    if grid and not out_of_domain:
+        _style.draw_grid(ax, sim, axis)
 
     drew = _style.draw_overlays(ax, sim, axis, value)
 

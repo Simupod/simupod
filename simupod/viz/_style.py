@@ -19,6 +19,13 @@ MONITOR_COLOR = "#f0a800"     # amber
 PML_COLOR = "#7a7a7a"         # neutral grey
 STRUCTURE_EDGE = "#222222"    # structure outline over field data
 
+# Primary-grid overlay (the ``grid=True`` mesh sanity-check): thin, light lines
+# above the structures/heatmap but below the source/monitor glyphs (zorder 4-5).
+GRID_COLOR = "#5a5a5a"
+GRID_LW = 0.4
+GRID_ALPHA = 0.35
+GRID_Z = 2.5
+
 # ε heatmap / structure-fill colormap. Sequential, light->dark with ε.
 EPS_CMAP = "viridis"
 
@@ -180,6 +187,26 @@ def has_pml(sim) -> bool:
 # --------------------------------------------------------------------------- #
 # Overlay drawing — sources, monitors, PML — on a 2D Axes (design §6).
 # --------------------------------------------------------------------------- #
+
+def draw_grid(ax, sim, axis: str) -> None:
+    """Overlay the realized primary-grid cell edges on a 2D cut so mesh
+    resolution can be eyeballed against the geometry (the ``grid=True`` flag on
+    ``plot`` / ``plot_eps``). Uses the SAME node coordinates the solver meshes —
+    a uniform ``n*dl`` ladder or the graded cell edges — so the spacing shown is
+    exactly what will run. Lines span the realized domain."""
+    from .eps import axis_nodes_um  # lazy: eps imports _style (avoid a cycle)
+
+    h_letter, v_letter = geom.in_plane_axes(axis)
+    h_i = _AXES.index(h_letter)
+    v_i = _AXES.index(v_letter)
+    h_nodes = axis_nodes_um(sim, h_i)
+    v_nodes = axis_nodes_um(sim, v_i)
+    realized = sim._realized_um()
+    ax.vlines(h_nodes, 0.0, realized[v_i], colors=GRID_COLOR, linewidth=GRID_LW,
+              alpha=GRID_ALPHA, zorder=GRID_Z)
+    ax.hlines(v_nodes, 0.0, realized[h_i], colors=GRID_COLOR, linewidth=GRID_LW,
+              alpha=GRID_ALPHA, zorder=GRID_Z)
+
 
 def draw_overlays(ax, sim, axis: str, value: float) -> Dict[str, bool]:
     """Draw source / monitor / PML overlays for a cut plane onto ``ax``.

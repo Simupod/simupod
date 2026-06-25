@@ -609,25 +609,35 @@ class Simulation(FrozenModel):
     # these pydantic models stay clean. Imported lazily so matplotlib is only
     # loaded when a plot is actually requested.
 
-    def plot(self, x=None, y=None, z=None, *, ax=None, legend=True, **kw):
+    def plot(self, x=None, y=None, z=None, *, ax=None, legend=True,
+             grid=False, **kw):
         """2D analytic cross-section of the scene on a cut plane (exactly one
-        of x/y/z, in microns). Returns a matplotlib ``Axes``. See
+        of x/y/z, in microns). ``grid=True`` overlays the Yee mesh cell edges
+        (the resolution sanity-check). Returns a matplotlib ``Axes``. See
         :func:`simupod.viz.plot`."""
         from ..viz import plot as _plot
-        return _plot(self, x=x, y=y, z=z, ax=ax, legend=legend, **kw)
+        return _plot(self, x=x, y=y, z=z, ax=ax, legend=legend, grid=grid, **kw)
 
-    def plot_eps(self, x=None, y=None, z=None, *, ax=None, cmap=None, **kw):
+    def plot_eps(self, x=None, y=None, z=None, *, ax=None, cmap=None,
+                 grid=False, **kw):
         """Rasterized permittivity heatmap (the §9 hard sample the solver
-        takes) on a cut plane. Returns a matplotlib ``Axes``. See
-        :func:`simupod.viz.plot_eps`."""
+        takes) on a cut plane. ``grid=True`` overlays the cell edges. Returns a
+        matplotlib ``Axes``. See :func:`simupod.viz.plot_eps`."""
         from ..viz import plot_eps as _plot_eps
-        return _plot_eps(self, x=x, y=y, z=z, ax=ax, cmap=cmap, **kw)
+        return _plot_eps(self, x=x, y=y, z=z, ax=ax, cmap=cmap, grid=grid, **kw)
 
     def plot_3d(self, **kw):
         """Interactive 3D geometry as a plotly ``Figure`` (requires the
         ``simupod[viz]`` extra). See :func:`simupod.viz.plot_3d`."""
         from ..viz import plot_3d as _plot_3d
         return _plot_3d(self, **kw)
+
+    def preview(self, **kw):
+        """Interactive Jupyter scrubber over the cut plane (slider + axis/grid/ε
+        toggles). Requires the ``simupod[viz]`` extra and a notebook. See
+        :func:`simupod.viz.interactive_preview`."""
+        from ..viz import interactive_preview as _preview
+        return _preview(self, **kw)
 
     def cost_estimate(
         self,

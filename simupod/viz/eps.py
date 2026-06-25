@@ -252,13 +252,14 @@ def _point_in_polygon_vec(verts, pu, pv):
 
 
 def plot_eps(sim, x=None, y=None, z=None, *, ax=None, cmap=None,
-             legend=True, **kw):
+             legend=True, grid=False, **kw):
     """Render the rasterized ε heatmap on the selected cut plane. See the
     module docstring for the subpixel caveat. Returns the matplotlib ``Axes``.
 
     Exactly one of x/y/z (microns) selects the constant-coordinate cut plane.
     The plot uses the real µm node coordinates (``pcolormesh``), so graded
-    meshes render with correct, non-uniform cell widths."""
+    meshes render with correct, non-uniform cell widths. ``grid=True`` overlays
+    the realized cell edges — useful to confirm features are well resolved."""
     import matplotlib.pyplot as plt
 
     axis, value = geom.select_plane(x, y, z)
@@ -285,6 +286,9 @@ def plot_eps(sim, x=None, y=None, z=None, *, ax=None, cmap=None,
                          vmin=vmin, vmax=vmax, shading="flat", **kw)
     cbar = ax.figure.colorbar(mesh, ax=ax)
     cbar.set_label("permittivity ε (hard sample)")
+
+    if grid:
+        _style.draw_grid(ax, sim, axis)
 
     drew = _style.draw_overlays(ax, sim, axis, value)
     if legend:

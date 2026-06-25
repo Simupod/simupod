@@ -43,20 +43,21 @@ def _as_executable(path: Union[str, Path]) -> Optional[Path]:
 
 
 def find_solver(solver_path: Union[str, Path, None] = None) -> Optional[Path]:
-    """Locate the phsolver binary: explicit argument, then $PHOTONHUB_SOLVER,
-    then PATH, then the in-repo default build directory. An explicit argument
-    or environment override that does not exist is an error, not a fallthrough.
-    Returns None only when nothing is configured and no binary is found."""
+    """Locate the phsolver binary: explicit argument, then $SIMUPOD_SOLVER
+    (legacy $PHOTONHUB_SOLVER still accepted), then PATH, then the in-repo default
+    build directory. An explicit argument or environment override that does not
+    exist is an error, not a fallthrough. Returns None only when nothing is
+    configured and no binary is found."""
     if solver_path is not None:
         p = _as_executable(solver_path)
         if p is None:
             raise SolverRunError(f"solver_path is not an executable file: {solver_path}")
         return p
-    env = os.environ.get("PHOTONHUB_SOLVER")
+    env = os.environ.get("SIMUPOD_SOLVER") or os.environ.get("PHOTONHUB_SOLVER")
     if env:
         p = _as_executable(env)
         if p is None:
-            raise SolverRunError(f"$PHOTONHUB_SOLVER is not an executable file: {env}")
+            raise SolverRunError(f"$SIMUPOD_SOLVER is not an executable file: {env}")
         return p
     on_path = shutil.which("phsolver")
     if on_path:
@@ -117,7 +118,7 @@ def run_local(
     solver = find_solver(solver_path)
     if solver is None:
         raise SolverRunError(
-            "phsolver binary not found: pass solver_path=, set $PHOTONHUB_SOLVER, "
+            "phsolver binary not found: pass solver_path=, set $SIMUPOD_SOLVER, "
             "put phsolver on PATH, or build the engine "
             "(cmake -S engine -B build && cmake --build build)"
         )

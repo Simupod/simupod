@@ -28,9 +28,11 @@ from ..components.sources import ModeSource
 from ..components.source_time import SourceTimeType
 from .mode_overlap import (
     ETA0,
+    ModeBank,
     _TRANSVERSE,
     _cell_widths,
     modal_fields,
+    mode_decomposition,
     mode_transmission,
     vector_modal_fields,
 )
@@ -332,6 +334,32 @@ def mode_source_vector(
     maj, minr, pol_major = _resample(mode)
     pol_minor = ("E" + t2_name) if pol_major == "E" + t1_name else ("E" + t1_name)
 
+    def _resample_h():
+        """True paired-H profiles (E-equivalent units h·η0/n_eff) for the frozen
+        mode, sign-aligned to the E profiles so each reduces to +profile in the
+        scalar limit (matching the legacy engine path) — the deviation IS the
+        true-H correction the engine's E-correction needs to stop radiating the
+        scalar-limit-H mismatch (~few %)."""
+        fv = vector_modal_fields(mode, u_coords, v_coords, axis=axis,
+                                 direction=direction, center_um=center_um,
+                                 thickness_axis=thickness_axis)
+        e1, e2, h1, h2 = (np.real(fv[k]) for k in ("e1", "e2", "h1", "h2"))
+        major_t1 = float(np.sum(e1 ** 2)) >= float(np.sum(e2 ** 2))
+        e_maj, e_min = (e1, e2) if major_t1 else (e2, e1)
+        h_maj, h_min = (h2, h1) if major_t1 else (h1, h2)  # E_t pairs with H of the OTHER axis
+        p_unit = (float(mode.n_eff) / (2.0 * ETA0)) * float(
+            np.sum((e_maj ** 2 + e_min ** 2) * dA_m2))
+        sc = float(np.sqrt(power_watts / p_unit))
+        fac = (ETA0 / float(mode.n_eff)) * sc
+        hmaj, hmin = h_maj * fac, h_min * fac
+        if float(np.vdot(e_maj.ravel(), hmaj.ravel())) < 0.0:
+            hmaj = -hmaj
+        if float(np.vdot(e_min.ravel(), hmin.ravel())) < 0.0:
+            hmin = -hmin
+        return hmaj.reshape(-1), hmin.reshape(-1)
+
+    h_maj_prof, h_min_prof = _resample_h()
+
     bb = _broadband_arrays(
         modes_by_freq, _resample, pol_major, maj, central_minor=minr,
     )
@@ -347,9 +375,19 @@ def mode_source_vector(
         profile=tuple(float(v) for v in maj),
         minor_polarization=pol_minor,
         profile_minor=tuple(float(v) for v in minr),
+        profile_h=tuple(float(v) for v in h_maj_prof),
+        profile_h_minor=tuple(float(v) for v in h_min_prof),
         source_time=source_time,
         **bb,
     )
+
+
+#: Sentinel for the de-stagger default. When a readout's ``destagger_dl`` is left
+#: at this value, de-stagger is applied AUTOMATICALLY using the monitor's grid
+#: spacing ``dl_um`` whenever ``colocate=True`` (real Yee-staggered FDTD data),
+#: and skipped when ``colocate=False`` (synthetic, already-co-located fields).
+#: Pass an explicit ``destagger_dl=None`` to force it off, or a float to override.
+_DESTAGGER_AUTO = object()
 
 
 @dataclass(frozen=True)
@@ -365,6 +403,14 @@ class ModeMonitor:
     direction: str = "+"
     thickness_axis: Optional[str] = None
     modes_by_freq: Optional[Mapping[float, Mode]] = None
+    #: Optional multi-mode bank ``{freq_hz: {mode_index: Mode}}`` (per-frequency)
+    #: or ``{mode_index: Mode}`` (frozen) for :meth:`mode_decomposition`. Build
+    #: the per-frequency form with :func:`solve_mode_bank`.
+    mode_bank: Optional[ModeBank] = None
+    #: Grid spacing (microns) along the propagation/normal axis, captured from the
+    #: simulation by :func:`mode_monitor`. Enables the de-stagger by default (see
+    #: :data:`_DESTAGGER_AUTO`); ``None`` if the monitor was built without a grid.
+    dl_um: Optional[float] = None
 
     @property
     def name(self) -> str:
@@ -378,6 +424,7 @@ class ModeMonitor:
         n_eff: Optional[float] = None,
         modes_by_freq: Optional[Mapping[float, Mode]] = None,
         colocate: bool = True,
+        destagger_dl=_DESTAGGER_AUTO,
     ) -> Dict[float, float]:
         """The forward (or backward) modal **power** ``{freq_hz: |a_pm|²/P_mode}``
         on this plane — the actual power carried by ``mode`` through it, in the
@@ -393,7 +440,17 @@ class ModeMonitor:
         ``SimulationData`` from the run; ``data[self.name]`` is the recorded DFT
         plane. Pass ``modes_by_freq`` (``{freq_hz: Mode}``) to project each
         frequency onto its own per-λ mode instead of the frozen ``self.mode``
-        (overrides the monitor's stored ``modes_by_freq`` if any)."""
+        (overrides the monitor's stored ``modes_by_freq`` if any).
+
+        **De-stagger is ON by default** (the longitudinal Yee de-stagger; see
+        :func:`~simupod.plugins.mode_overlap.mode_transmission`): when ``colocate``
+        is True it uses the monitor's grid ``dl_um`` automatically, matching what
+        Tidy3D's ``ModeMonitor(colocate=True)`` does when it interpolates the
+        staggered Yee components to common coordinates. Pass ``destagger_dl=None``
+        to force it off (e.g. for already-co-located synthetic fields), or a float
+        to override the spacing."""
+        if destagger_dl is _DESTAGGER_AUTO:
+            destagger_dl = self.dl_um if colocate else None
         da = data[self.name]
         planes: Mapping[str, object] = {
             c: da.sel(component=c) for c in _TANGENTIAL[self.axis]
@@ -410,6 +467,52 @@ class ModeMonitor:
             modes_by_freq=mbf,
             power=True,
             colocate=colocate,
+            destagger_dl=destagger_dl,
+        )
+
+    def mode_decomposition(
+        self,
+        data,
+        *,
+        quantity: str = "transmission",
+        direction: Optional[str] = None,
+        mode_bank: Optional[ModeBank] = None,
+        colocate: bool = True,
+        destagger_dl=_DESTAGGER_AUTO,
+    ) -> Dict[int, Dict[float, Any]]:
+        """Decompose the recorded plane onto MULTIPLE modes → ``{mode_index:
+        {freq_hz: value}}`` (Tidy3D ``ModeMonitor`` with ``num_modes``).
+
+        Projects the plane onto every mode in the bank (each index, each
+        frequency) instead of the single ``self.mode`` that :meth:`mode_power`
+        uses. The bank is ``mode_bank`` if given, else the monitor's stored
+        ``self.mode_bank``; it is ``{freq_hz: {mode_index: Mode}}`` (per-frequency,
+        dispersive — see :func:`solve_mode_bank`) or ``{mode_index: Mode}``
+        (frozen). ``quantity`` selects ``"transmission"`` (``|c|²``, default),
+        ``"power"`` (``|a_pm|²/P_mode``, the per-mode power to ratio across ports),
+        or ``"amplitude"`` (complex ``c``, for a multimode S-matrix). See
+        :func:`~simupod.plugins.mode_overlap.mode_decomposition`."""
+        bank = mode_bank if mode_bank is not None else self.mode_bank
+        if not bank:
+            raise ValueError(
+                "no mode_bank: pass mode_bank=... or build the ModeMonitor with "
+                "one (see solve_mode_bank); mode_decomposition needs >1 mode")
+        if destagger_dl is _DESTAGGER_AUTO:  # de-stagger ON by default (see mode_power)
+            destagger_dl = self.dl_um if colocate else None
+        da = data[self.name]
+        planes: Mapping[str, object] = {
+            c: da.sel(component=c) for c in _TANGENTIAL[self.axis]
+        }
+        return mode_decomposition(
+            planes,
+            bank,
+            axis=self.axis,
+            direction=direction or self.direction,
+            quantity=quantity,
+            center_um=self.center_um,
+            thickness_axis=self.thickness_axis,
+            colocate=colocate,
+            destagger_dl=destagger_dl,
         )
 
 
@@ -421,16 +524,21 @@ def transmission(
     direction: str = "+",
     n_eff: Optional[float] = None,
     colocate: bool = True,
+    destagger_dl=_DESTAGGER_AUTO,
 ) -> Dict[float, float]:
     """Mode-resolved power transmission ``{freq_hz: T}`` from ``in_monitor`` to
     ``out_monitor`` — the ratio of modal powers, which cancels the source and
     spectrum normalization so a lossless single-mode straight guide reads
     ``T ≈ 1``. Place ``in_monitor`` just after the source (total-field side) and
-    ``out_monitor`` at the device output."""
+    ``out_monitor`` at the device output. The longitudinal Yee de-stagger is
+    applied by default (each monitor uses its own grid ``dl_um`` when
+    ``colocate=True``) — it removes the input-plane standing-wave ripple and
+    matches Tidy3D's ``colocate=True`` convention; pass ``destagger_dl=None`` to
+    force it off. See :meth:`ModeMonitor.mode_power`."""
     p_in = in_monitor.mode_power(data, direction=direction, n_eff=n_eff,
-                                 colocate=colocate)
+                                 colocate=colocate, destagger_dl=destagger_dl)
     p_out = out_monitor.mode_power(data, direction=direction, n_eff=n_eff,
-                                   colocate=colocate)
+                                   colocate=colocate, destagger_dl=destagger_dl)
     return {f: p_out[f] / p_in[f] for f in p_out if f in p_in}
 
 
@@ -446,13 +554,17 @@ def mode_monitor(
     center_um: Optional[Tuple[float, float]] = None,
     thickness_axis: Optional[str] = None,
     modes_by_freq: Optional[Mapping[float, Mode]] = None,
+    mode_bank: Optional[ModeBank] = None,
 ) -> ModeMonitor:
     """Build a :class:`ModeMonitor` (a 4-tangential ``FieldDftMonitor`` on the
     ``axis`` plane at ``position_um`` + a transmission post-process onto
     ``mode``). Add ``.field_monitor`` to the simulation's monitors, run, then
     call ``.transmission(data)``. ``thickness_axis`` is the slab-normal axis
     (pass e.g. ``"z"`` for non-x propagation so the overlap mode is not rotated
-    90 degrees); ``None`` keeps the legacy mapping. See :func:`mode_source`."""
+    90 degrees); ``None`` keeps the legacy mapping. Pass ``mode_bank``
+    (``{freq_hz: {mode_index: Mode}}``, see :func:`solve_mode_bank`) to enable
+    :meth:`ModeMonitor.mode_decomposition` (multi-mode readout). See
+    :func:`mode_source`."""
     if axis not in _TRANSVERSE:
         raise ValueError(f"axis must be one of x/y/z, got {axis!r}")
     idx = _AXIS_IDX[axis]
@@ -483,6 +595,10 @@ def mode_monitor(
         direction=direction,
         thickness_axis=thickness_axis,
         modes_by_freq=modes_by_freq,
+        mode_bank=mode_bank,
+        # propagation/normal-axis spacing (uniform grid) → enables the de-stagger
+        # by default in mode_power/mode_decomposition; None on a graded grid.
+        dl_um=float(dl) if dl else None,
     )
 
 
@@ -552,4 +668,76 @@ def solve_modes_by_freq(
                 "across the whole band"
             )
         out[f] = modes[mode_index]
+    return out
+
+
+def solve_mode_bank(
+    solver: Any,
+    freqs_hz: Iterable[float],
+    *,
+    mode_indices: Iterable[int] = (0,),
+    **solve_kwargs: Any,
+) -> Dict[float, Dict[int, Mode]]:
+    """Solve SEVERAL FDE eigenmodes at EACH frequency and return the multi-mode
+    bank ``{freq_hz: {mode_index: Mode}}`` — ready to hand to :func:`mode_monitor`
+    (or :class:`ModeMonitor`) as ``mode_bank`` for :meth:`ModeMonitor.mode_decomposition`.
+
+    This is the multi-mode generalization of :func:`solve_modes_by_freq` (which
+    keeps only a single ``mode_index`` per frequency) and the readout-side
+    analogue of Tidy3D's ``ModeMonitor(mode_spec=ModeSpec(num_modes=N),
+    num_freqs=M)``: it gives the full guided-mode basis ``mode_indices`` at every
+    monitor frequency, so a recorded plane can be decomposed into per-mode powers
+    (the fundamental vs higher-order content) with the correct per-(mode, λ)
+    profile and ``n_eff``.
+
+    Parameters
+    ----------
+    solver:
+        A :class:`~simupod.plugins.modes.ModeSolver` or
+        :class:`~simupod.plugins.vector_modes.VectorModeSolver` carrying the
+        waveguide cross-section (re-solved per frequency via ``at_wavelength``;
+        the eps is shared by reference, so it is rasterized once).
+    freqs_hz:
+        The monitor frequencies (Hz) — typically the ``FieldDftMonitor`` /
+        ``mode_monitor`` frequencies.
+    mode_indices:
+        Which solved modes to keep per frequency, in the descending-``n_eff``
+        order ``solve`` returns (``0`` = fundamental). Duplicates are collapsed
+        and the result is sorted ascending. ``num_modes`` is bumped to at least
+        ``max(mode_indices) + 1`` so every requested mode is available.
+    **solve_kwargs:
+        Forwarded to ``solver.solve`` (e.g. ``polarization="TE"`` for the scalar
+        solver, ``n_guess=...``).
+
+    Returns
+    -------
+    dict[float, dict[int, Mode]]
+        ``{freq_hz: {mode_index: Mode}}`` in the input frequency order, each
+        inner dict carrying the requested ``mode_indices`` (ascending). Cost: one
+        CPU FDE solve per frequency (each returns all requested modes at once).
+    """
+    freqs = [float(f) for f in freqs_hz]
+    if not freqs:
+        raise ValueError("freqs_hz must be non-empty")
+    idxs = sorted({int(i) for i in mode_indices})
+    if not idxs:
+        raise ValueError("mode_indices must be non-empty")
+    if idxs[0] < 0:
+        raise ValueError(f"mode_indices must be >= 0, got {idxs[0]}")
+    num_modes = max(int(solve_kwargs.pop("num_modes", 1)), idxs[-1] + 1)
+    out: Dict[float, Dict[int, Mode]] = {}
+    for f in freqs:
+        if not f > 0.0:
+            raise ValueError(f"frequencies must be > 0 Hz, got {f}")
+        wavelength_um = C0 / f * 1e6
+        modes = solver.at_wavelength(wavelength_um).solve(
+            num_modes=num_modes, **solve_kwargs
+        )
+        if idxs[-1] >= len(modes):
+            raise ValueError(
+                f"requested mode_index {idxs[-1]} but the solver returned only "
+                f"{len(modes)} mode(s) at {f:.4g} Hz ({wavelength_um:.4f} um) — "
+                "the waveguide may not support it across the whole band"
+            )
+        out[f] = {i: modes[i] for i in idxs}
     return out

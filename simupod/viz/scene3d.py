@@ -5,9 +5,9 @@ parametric mesh), sources ``Scatter3d`` markers / translucent planes, monitors
 translucent boxes / planes, plus a wireframe domain box and translucent PML
 shells on non-periodic boundaries.
 
-plotly is the optional ``photonhub[viz]`` extra and is imported LAZILY: when it
+plotly is the optional ``simupod[viz]`` extra and is imported LAZILY: when it
 is absent, :func:`plot_3d` raises ``ImportError`` with the exact
-``pip install photonhub[viz]`` hint (design §8).
+``pip install simupod[viz]`` hint (design §8).
 """
 
 import math
@@ -17,7 +17,7 @@ from . import _style
 
 _PLOTLY_HINT = (
     "plot_3d requires plotly (the optional 3D viz extra). Install it with:\n"
-    "    pip install photonhub[viz]"
+    "    pip install simupod[viz]"
 )
 
 

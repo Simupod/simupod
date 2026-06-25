@@ -47,10 +47,17 @@ from .mode_devices import (
     mode_monitor,
     mode_source,
     mode_source_vector,
+    solve_mode_bank,
     solve_modes_by_freq,
     transmission,
 )
-from .mode_overlap import mode_amplitude, mode_transmission, vector_modal_fields
+from .mode_overlap import (
+    ModeBank,
+    mode_amplitude,
+    mode_decomposition,
+    mode_transmission,
+    vector_modal_fields,
+)
 from .modes import Mode, ModeSolver
 from .near_field import FarField, equivalent_currents, far_field
 from .smatrix import (
@@ -70,6 +77,7 @@ __all__ = [
     "EMEResult",
     "FarField",
     "Mode",
+    "ModeBank",
     "ModeMonitor",
     "ModeSolver",
     "SPort",
@@ -91,6 +99,7 @@ __all__ = [
     "is_reciprocal",
     "match_modes",
     "mode_amplitude",
+    "mode_decomposition",
     "mode_monitor",
     "mode_source",
     "mode_source_vector",
@@ -101,6 +110,7 @@ __all__ = [
     "reorder_to_tracks",
     "run_eme",
     "smatrix",
+    "solve_mode_bank",
     "solve_modes_by_freq",
     "star_product",
     "track_modes",

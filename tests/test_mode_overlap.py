@@ -114,6 +114,65 @@ def _build_plane(mode: Mode, x, y, *, direction="+", n_eff=None, scale=1.0,
     return out
 
 
+# --- longitudinal Yee de-stagger (Fix B) ------------------------------------
+
+def _staggered_incident_reflected(mode, x, y, *, a, b, phi, freq_hz=F0):
+    """A plane carrying incident `a` + reflected `b` of `mode`, with the
+    engine's LONGITUDINAL Yee stagger baked in: H is half a cell along the
+    normal from E, so the forward part of H carries e^{+i phi} and the backward
+    part e^{-i phi} relative to E (phi = beta*dl/2). E = (a+b)e ;
+    H = (a e^{i phi} - b e^{-i phi}) h. DFT-shaped (carries `freq_hz`) so the
+    de-stagger can recover phi from lambda = C0/f. Returns the four tangential
+    DataArrays."""
+    m = modal_fields(mode, x, y, axis="z", direction="+")
+    e1, e2, h1, h2 = m["e1"], m["e2"], m["h1"], m["h2"]
+    hfac = a * np.exp(1j * phi) - b * np.exp(-1j * phi)
+    comps = {"Ex": (a + b) * e1, "Ey": (a + b) * e2,
+             "Hx": hfac * h1, "Hy": hfac * h2}
+    out = {}
+    for n, v in comps.items():
+        arr = np.asarray(v, dtype=np.complex128)[None, None, None, :, :]
+        out[n] = xr.DataArray(arr, dims=("f", "component", "z", "y", "x"),
+                              coords={"f": [freq_hz], "component": [n],
+                                      "z": [0.0], "y": y, "x": x})
+    return out
+
+
+def test_destagger_removes_reflection_leak(te0: Mode):
+    """The de-stagger recovers the incident amplitude independent of the
+    reflection's PHASE (the standing-wave ripple), while the uncorrected reading
+    leaks: T0 swings with the reflection phase, T_destagger stays = |a|^2."""
+    x, y = _plane_axes(te0)
+    dl = DL_UM
+    phi = 2.0 * np.pi * te0.n_eff / WL_UM * (0.5 * dl)
+    assert phi > 0.05  # a meaningful stagger at this dl
+    a, b = 1.0, 0.3
+    T0, T1 = [], []
+    for psi in (0.0, 0.5 * np.pi, np.pi, 1.5 * np.pi):
+        plane = _staggered_incident_reflected(
+            te0, x, y, a=a, b=b * np.exp(1j * psi), phi=phi)
+        T0.append(mode_transmission(plane, te0, axis="z", direction="+")[F0])
+        T1.append(mode_transmission(plane, te0, axis="z", direction="+",
+                                    destagger_dl=dl)[F0])
+    T0 = np.array(T0); T1 = np.array(T1)
+    # de-staggered: clean incident |a|^2 == 1 at every reflection phase (no ripple)
+    assert np.allclose(T1, a ** 2, rtol=2e-3)
+    assert (T1.max() - T1.min()) < 1e-3
+    # uncorrected: a real, phase-dependent leak (ripple) the fix removes
+    assert (T0.max() - T0.min()) > 5e-3
+
+
+def test_destagger_clean_forward_is_unity(te0: Mode):
+    """With no reflection, the de-stagger still reads a clean forward wave as
+    T == 1 (it does not bias the self-overlap)."""
+    x, y = _plane_axes(te0)
+    dl = DL_UM
+    phi = 2.0 * np.pi * te0.n_eff / WL_UM * (0.5 * dl)
+    plane = _staggered_incident_reflected(te0, x, y, a=1.0, b=0.0, phi=phi)
+    T = mode_transmission(plane, te0, axis="z", direction="+", destagger_dl=dl)[F0]
+    assert T == pytest.approx(1.0, rel=2e-3)
+
+
 # --- self-overlap = 1 -------------------------------------------------------
 
 def test_self_overlap_is_one(te0: Mode):

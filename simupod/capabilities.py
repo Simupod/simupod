@@ -111,7 +111,7 @@ def engine_capabilities(
     """Parse ``phsolver --capabilities`` into a dict, or ``None`` when no solver
     binary is configured/found.
 
-    Locates the binary the same way a run does (explicit arg, ``$PHOTONHUB_SOLVER``,
+    Locates the binary the same way a run does (explicit arg, ``$SIMUPOD_SOLVER``,
     ``PATH``, then the in-repo build dir) via :func:`simupod.find_solver`.
     Raises on a present-but-broken binary (non-zero exit or unparseable output)
     — a silent fallback would defeat the point of the drift gate.

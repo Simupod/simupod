@@ -1,7 +1,8 @@
 """Configuration for the cloud client (``ph.web``).
 
 ``configure(api_key=..., url=...)`` sets the active config; values fall back to
-``$PHOTONHUB_API_KEY`` / ``$PHOTONHUB_URL`` (mirroring ``find_solver``'s
+``$SIMUPOD_API_KEY`` / ``$SIMUPOD_URL`` (legacy ``$PHOTONHUB_*`` still accepted;
+mirroring ``find_solver``'s
 explicit→env precedence, where a missing required value is an error, not a
 silent default). ``WebError`` is raised for config/transport/auth problems —
 distinct from ``SolverRunError``, which is reserved for a simulation actually
@@ -15,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-#: Default endpoint; override with url=/$PHOTONHUB_URL (e.g. the prod API host).
+#: Default endpoint; override with url=/$SIMUPOD_URL (e.g. the prod API host).
 DEFAULT_URL = "http://localhost:8000"
 
 
@@ -43,11 +44,16 @@ class WebConfig:
 _CONFIG: Optional[WebConfig] = None
 
 
+def _env(suffix: str) -> Optional[str]:
+    """Read ``SIMUPOD_<suffix>``, falling back to the legacy ``PHOTONHUB_<suffix>``."""
+    return os.environ.get(f"SIMUPOD_{suffix}") or os.environ.get(f"PHOTONHUB_{suffix}")
+
+
 def _default_cache_dir() -> Path:
-    env = os.environ.get("PHOTONHUB_CACHE_DIR")
+    env = _env("CACHE_DIR")
     if env:
         return Path(env)
-    return Path.home() / ".cache" / "photonhub" / "jobs"
+    return Path.home() / ".cache" / "simupod" / "jobs"
 
 
 def configure(api_key: Optional[str] = None, url: Optional[str] = None, *,
@@ -56,12 +62,12 @@ def configure(api_key: Optional[str] = None, url: Optional[str] = None, *,
               request_timeout_s: float = 30.0) -> WebConfig:
     """Set the active cloud configuration. Returns it for inspection."""
     global _CONFIG
-    key = api_key or os.environ.get("PHOTONHUB_API_KEY")
+    key = api_key or _env("API_KEY")
     if not key:
         raise WebError(
-            "no API key: pass api_key= or set $PHOTONHUB_API_KEY "
+            "no API key: pass api_key= or set $SIMUPOD_API_KEY "
             "(create one with ph.web.create_api_key after signing in)")
-    base = (url or os.environ.get("PHOTONHUB_URL") or DEFAULT_URL).rstrip("/")
+    base = (url or _env("URL") or DEFAULT_URL).rstrip("/")
     cache = Path(cache_dir) if cache_dir else _default_cache_dir()
     _CONFIG = WebConfig(
         url=base, api_key=key, cache_dir=cache,
@@ -75,11 +81,11 @@ def get_config() -> WebConfig:
     """The active config, building one from the environment on first use."""
     if _CONFIG is not None:
         return _CONFIG
-    if os.environ.get("PHOTONHUB_API_KEY"):
+    if _env("API_KEY"):
         return configure()
     raise WebError(
         "simupod.web is not configured; call "
-        "ph.web.configure(api_key=..., url=...) or set $PHOTONHUB_API_KEY")
+        "ph.web.configure(api_key=..., url=...) or set $SIMUPOD_API_KEY")
 
 
 def reset() -> None:

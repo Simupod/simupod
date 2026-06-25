@@ -167,6 +167,37 @@ class Simulation(FrozenModel):
                 out.append(q[-1] + graded_primary_spacings(q)[-1])
         return tuple(out)
 
+    def _dispersive_boundary_crossings(self) -> Tuple[bool, bool, bool]:
+        """Per axis: does a dispersive (Lorentz) structure's bounding box reach
+        into that axis' OUTER absorbing band (the PML/absorber layers)? These
+        are the structures for which a stretched-coordinate PML can diverge —
+        the absorber's reason to exist (NUMERICS.md §21). Conservative: the
+        bounding box contains slanted/curved geometry, so a crossing is never
+        missed (it can be over-reported).
+
+        The band thickness is referenced to the base spacing ``dl_um`` (the PML
+        layer count times one cell); this is the same approximation the engine's
+        uniform-grid PML uses and is adequate for an early-feedback verdict."""
+        from ._bounds import geometry_bounds_um
+
+        realized = self._realized_um()
+        # Outer PML-stretch thickness (microns): the region where a dispersive
+        # medium is hostile. ``pml_num_layers`` (not the thicker absorber count) —
+        # the decision is "does the medium reach the stretched-coordinate region
+        # of the boundary currently in place", which is the PML's depth.
+        band = self.pml_num_layers * self.grid.dl_um
+        out = [False, False, False]
+        for s in self.structures:
+            if getattr(s.medium, "lorentz", None) is None:
+                continue
+            bb = geometry_bounds_um(s.geometry)
+            for a in range(3):
+                lo, hi = bb[a]
+                L = realized[a]
+                if lo < band or hi > L - band:
+                    out[a] = True
+        return tuple(out)
+
     def with_auto_grid(
         self,
         *,
@@ -258,6 +289,47 @@ class Simulation(FrozenModel):
         return self.model_copy(update={
             "boundaries": Boundaries(x="absorber", y="absorber", z="absorber"),
             "absorber_num_layers": num_layers,
+        })
+
+    def with_auto_boundaries(self) -> "Simulation":
+        """Return a COPY whose OPEN (radiating) boundaries are chosen PER AXIS
+        from the materials that reach the domain edge — mirroring Tidy3D's
+        material-aware guidance that a stretched-coordinate PML wants a
+        non-dispersive medium in its absorbing region:
+
+        * an axis where a **dispersive (Lorentz) medium crosses the boundary**
+          gets the adiabatic **absorber** (graded electric conductivity,
+          NUMERICS.md §21) — the robust fallback for the regime where a PML can
+          diverge (Oskooi & Johnson 2011);
+        * every other open axis keeps the (thinner, lower-floor) **PML**.
+
+        ``periodic`` and ``pec`` axes are left untouched: those encode explicit
+        physics (a Bloch / transverse-infinite axis, a hard mirror), not an open
+        boundary to auto-select. Opt-in — the default boundaries are unchanged,
+        so no existing scene's wire output moves unless you call this::
+
+            sim = sim.with_auto_boundaries()   # PML, but absorber where dispersive
+
+        This is the programmatic form of the construction-time warning the same
+        crossing raises; call it to act on that advice in one line.
+
+        The open-boundary decision has three cases: a well-behaved scene keeps
+        the default PML; a scene that *diverges* without a dispersive edge
+        (grazing / long run) wants ``with_stabilized_pml()``; a dispersive
+        medium at the wall wants the absorber this method selects.
+        """
+        crossings = self._dispersive_boundary_crossings()
+        kinds = (self.boundaries.x, self.boundaries.y, self.boundaries.z)
+        chosen = []
+        for a in range(3):
+            if kinds[a] in ("periodic", "pec"):
+                chosen.append(kinds[a])          # explicit physics — respect it
+            elif crossings[a]:
+                chosen.append("absorber")        # PML-hostile medium at the wall
+            else:
+                chosen.append("pml")             # plain open boundary
+        return self.model_copy(update={
+            "boundaries": Boundaries(x=chosen[0], y=chosen[1], z=chosen[2]),
         })
 
     @model_validator(mode="after")
@@ -411,6 +483,39 @@ class Simulation(FrozenModel):
         return self
 
     @model_validator(mode="after")
+    def _warn_dispersive_media_in_pml(self, info) -> "Simulation":
+        # Material-aware boundary guidance, mirroring Tidy3D: a stretched-
+        # coordinate PML derives its absorbing profile assuming a NON-dispersive
+        # medium, so a dispersive (Lorentz) structure extending into the PML can
+        # drive a late-time divergence (Oskooi & Johnson, "Distinguishing
+        # correct from incorrect PML proposals...", J. Comput. Phys. 2011). The
+        # adiabatic absorber (graded electric conductivity, NUMERICS.md §21) is
+        # the robust fallback for exactly that regime. WARN — never override —
+        # matching Tidy3D's posture, so the wire output is unchanged and the user
+        # decides. ``with_auto_boundaries()`` acts on the advice automatically.
+        #
+        # Skipped on wire ingest (a parsed document is the user's deliberate
+        # choice, like the §16 subpixel default), and only for axes whose
+        # boundary is actually a PML (an axis already on the absorber is the fix).
+        if (info.context or {}).get("wire_ingest") or not self.structures:
+            return self
+        kinds = (self.boundaries.x, self.boundaries.y, self.boundaries.z)
+        crossings = self._dispersive_boundary_crossings()
+        hostile = [a for a in range(3) if crossings[a] and kinds[a] == "pml"]
+        if hostile:
+            axes = ", ".join(_AXES[a] for a in hostile)
+            warnings.warn(
+                f"a dispersive (Lorentz) medium extends into the PML on axis "
+                f"'{axes}': a stretched-coordinate PML assumes a non-dispersive "
+                "absorbing region and can diverge there. Switch that boundary to "
+                "the adiabatic absorber (NUMERICS.md §21) — "
+                "sim.with_auto_boundaries() picks it per axis, or "
+                f"boundaries.{_AXES[hostile[0]]}='absorber' / sim.with_absorber().",
+                stacklevel=2,
+            )
+        return self
+
+    @model_validator(mode="after")
     def _flux_planes_inside_domain(self) -> "Simulation":
         # Best-effort mirror of the engine's flux-plane bound (NUMERICS.md
         # section 12: snapped plane index 1 <= kp <= n_axis - 1); phsolver
@@ -520,7 +625,7 @@ class Simulation(FrozenModel):
 
     def plot_3d(self, **kw):
         """Interactive 3D geometry as a plotly ``Figure`` (requires the
-        ``photonhub[viz]`` extra). See :func:`simupod.viz.plot_3d`."""
+        ``simupod[viz]`` extra). See :func:`simupod.viz.plot_3d`."""
         from ..viz import plot_3d as _plot_3d
         return _plot_3d(self, **kw)
 

@@ -3,7 +3,7 @@
 The rendering engine behind ``Simulation.plot``/``plot_eps``/``plot_3d`` and
 ``SimulationData.plot_field``. All 2D methods return a matplotlib ``Axes``,
 accept ``ax=``, and never call ``plt.show()``; ``plot_3d`` returns a plotly
-``Figure`` (the optional ``photonhub[viz]`` extra, lazy-imported).
+``Figure`` (the optional ``simupod[viz]`` extra, lazy-imported).
 
 ``plot_mode`` (an FDE mode's transverse field) and ``plot_spectrum``
 (transmission ``T(λ)`` from the mode-monitor pipeline) are module-level helpers

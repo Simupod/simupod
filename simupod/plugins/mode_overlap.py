@@ -69,7 +69,7 @@ produces. No matplotlib, no engine calls.
 
 from __future__ import annotations
 
-from typing import Dict, Literal, Mapping, Optional, Tuple
+from typing import Any, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -78,15 +78,31 @@ from .modes import Mode
 
 __all__ = [
     "ETA0",
+    "ModeBank",
     "mode_amplitude",
     "mode_transmission",
+    "mode_decomposition",
     "resample_profile",
     "modal_fields",
     "vector_modal_fields",
 ]
 
+#: A multi-mode bank handed to :func:`mode_decomposition`. Either the
+#: per-frequency form ``{freq_hz: {mode_index: Mode}}`` (each plane frequency is
+#: projected onto the mode solved AT that frequency — the accurate, dispersive
+#: case) or the frozen form ``{mode_index: Mode}`` (one mode per index, projected
+#: onto every plane frequency). ``Mode`` here is a scalar :class:`Mode` or a
+#: full-vector ``VectorMode`` (the overlap kernel handles both).
+ModeBank = Union[Mapping[float, Mapping[int, Any]], Mapping[int, Any]]
+
+_QUANTITIES = ("transmission", "power", "amplitude")
+
 #: Vacuum wave impedance (ohms), eta0 = sqrt(mu0 / eps0) = mu0 * c0.
 ETA0: float = 376.730313668
+
+#: Free-space speed of light (m/s) — maps a monitor frequency to a wavelength
+#: (microns) for the longitudinal Yee de-stagger phase beta = 2*pi*n_eff/lambda.
+C0: float = 2.99792458e8
 
 Axis = Literal["x", "y", "z"]
 Direction = Literal["+", "-"]
@@ -416,13 +432,17 @@ def _overlap_terms(
     thickness_axis: Optional[Axis] = None,
     modes_by_freq: Optional[Mapping[float, Mode]] = None,
     colocate: bool = True,
+    destagger_dl: Optional[float] = None,
 ) -> Dict[float, Tuple[complex, float]]:
     """Per-frequency directional-power overlap terms ``{f: (a_pm, P_mode)}`` for a
     recorded plane projected onto ``mode`` — the shared kernel behind
     :func:`mode_amplitude` (``c = a_pm/P_mode``), :func:`mode_transmission`
     (``|c|² = |a_pm|²/P_mode²``) and the power readout (``|a_pm|²/P_mode``).
     ``a_pm`` is the unnormalized complex coefficient, ``P_mode`` the mode's own
-    power on the plane. See :func:`mode_transmission` for the argument schema."""
+    power on the plane. See :func:`mode_transmission` for the argument schema.
+
+    ``destagger_dl`` (the grid spacing along the propagation/normal axis, microns)
+    enables the **longitudinal Yee de-stagger** — see :func:`mode_transmission`."""
     if axis not in _TRANSVERSE:
         raise ValueError(f"axis must be one of x/y/z, got {axis!r}")
     t1, t2 = _TRANSVERSE[axis]
@@ -473,6 +493,9 @@ def _overlap_terms(
             # n_eff), matching Tidy3D's per-frequency ModeMonitor decomposition.
             key = min(modes_by_freq, key=lambda k: abs(k - f))
             use_mode, use_neff = modes_by_freq[key], None
+        # n_eff for the de-stagger phase: the override if given, else the mode's.
+        neff_ds = float(use_neff) if use_neff is not None \
+            else float(getattr(use_mode, "n_eff", 0.0))
         if hasattr(use_mode, "hx"):
             # Full-vector mode: project with the mode's TRUE transverse H, not the
             # scalar-limit (n_eff/eta0)·(z_hat x e). This is the grid-consistent
@@ -493,7 +516,9 @@ def _overlap_terms(
         # a_pm = (1/4) integral [ E_sim x h_mode* + e_mode* x H_sim ] . n_hat dA
         cross_eh = (Es1 * np.conj(h2) - Es2 * np.conj(h1))      # E_sim x h*
         cross_he = (np.conj(e1) * Hs2 - np.conj(e2) * Hs1)      # e* x H_sim
-        a_pm = 0.25 * np.sum((cross_eh + cross_he) * dA)
+        I_Eh = np.sum(cross_eh * dA)                            # integral E x h*
+        I_eH = np.sum(cross_he * dA)                            # integral e* x H
+        a_pm = 0.25 * (I_Eh + I_eH)
 
         # P_mode = (1/2) integral Re( e_mode x h_mode* ) . n_hat dA.
         p_density = np.real(e1 * np.conj(h2) - e2 * np.conj(h1))
@@ -503,6 +528,32 @@ def _overlap_terms(
             raise ValueError(
                 "P_mode is zero — the resampled mode has no power on this plane "
                 "(check the mode window vs the plane extent and center_um).")
+
+        if destagger_dl and f is not None:
+            # Longitudinal Yee DE-STAGGER. The engine records E at the cell node
+            # but H half a cell along the PROPAGATION axis (the monitor normal), so
+            # the two-term overlap carries a phase phi = beta*dl/2 (beta =
+            # 2*pi*n_eff/lambda). That phase both under-reads a clean co-propagating
+            # mode by cos(phi/2) AND mixes a fraction sin(phi/2) of the COUNTER-
+            # propagating wave into the reading — the standing-wave "ripple" at a
+            # plane in front of a reflecting junction (the transverse colocation
+            # above does NOT fix this; it is the normal-axis stagger). With the
+            # mode self-norm N = 2*P_mode, the two recorded overlaps are
+            #   I_Eh/N = a + b ,   I_eH/N = a e^{i phi} - b e^{-i phi}
+            # (a = co-, b = counter-propagating amplitude); solving the 2x2 for the
+            # clean co-propagating amplitude gives
+            #   a = ( I_eH/N + (I_Eh/N) e^{-i phi} ) / (2 cos phi) .
+            # A clean forward wave then reads a exactly (self-overlap 1 preserved)
+            # and a pure reflection reads ~0 forward. Default OFF (synthetic,
+            # already-colocated test fields have no such stagger).
+            lam_um = C0 / f * 1e6
+            phi = (2.0 * np.pi * neff_ds / lam_um) * (0.5 * destagger_dl)
+            if direction == "-":
+                phi = -phi
+            N = 2.0 * p_mode
+            a_ds = ((I_eH / N) + (I_Eh / N) * np.exp(-1j * phi)) / (2.0 * np.cos(phi))
+            a_pm = a_ds * p_mode  # |a_pm|^2/P_mode^2 = |a_ds|^2 (T) downstream
+
         out[f if f is not None else 0.0] = (complex(a_pm), float(p_mode))
     return out
 
@@ -518,6 +569,7 @@ def mode_amplitude(
     thickness_axis: Optional[Axis] = None,
     modes_by_freq: Optional[Mapping[float, Mode]] = None,
     colocate: bool = True,
+    destagger_dl: Optional[float] = None,
 ) -> Dict[float, complex]:
     """Mode-resolved **complex** modal amplitude ``c(f)`` of a recorded plane.
 
@@ -554,7 +606,8 @@ def mode_amplitude(
         for f, (a_pm, p_mode) in _overlap_terms(
             sim_plane_fields, mode, axis=axis, direction=direction, n_eff=n_eff,
             center_um=center_um, thickness_axis=thickness_axis,
-            modes_by_freq=modes_by_freq, colocate=colocate).items()
+            modes_by_freq=modes_by_freq, colocate=colocate,
+            destagger_dl=destagger_dl).items()
     }
 
 
@@ -570,6 +623,7 @@ def mode_transmission(
     modes_by_freq: Optional[Mapping[float, Mode]] = None,
     power: bool = False,
     colocate: bool = True,
+    destagger_dl: Optional[float] = None,
 ) -> Dict[float, float]:
     """Mode-resolved power transmission ``T(f)`` of a recorded plane onto ``mode``.
 
@@ -633,6 +687,20 @@ def mode_transmission(
         mode's own profile *and* ``n_eff``), instead of the single frozen
         ``mode`` — the per-λ mode solve. ``mode`` is still required (used as the
         fallback for any frequencyless plane).
+    destagger_dl:
+        Grid spacing (microns) along the propagation / monitor-normal axis. When
+        given, applies the **longitudinal Yee de-stagger**: the engine records
+        ``E`` at the cell node but ``H`` half a cell along the normal, so the
+        two-term overlap carries a phase ``phi = beta*dl/2`` (``beta =
+        2*pi*n_eff/lambda``) that under-reads a clean mode by ``cos(phi/2)`` and
+        leaks ``sin(phi/2)`` of the COUNTER-propagating wave into the reading — a
+        ~1% standing-wave ripple at a normalization plane in front of a reflecting
+        junction (the transverse :func:`_colocate_to_node` does NOT fix this).
+        The correction solves the 2x2 forward/backward system for the clean
+        co-propagating amplitude (a clean forward wave still reads ``T=1``; a pure
+        reflection reads ``~0`` forward). ``None`` (default) = off, so synthetic
+        already-co-located fields and the legacy readout are unchanged. Pass the
+        run's uniform grid ``dl`` (e.g. ``scene.dl_um``).
 
     Returns
     -------
@@ -644,10 +712,164 @@ def mode_transmission(
     terms = _overlap_terms(
         sim_plane_fields, mode, axis=axis, direction=direction, n_eff=n_eff,
         center_um=center_um, thickness_axis=thickness_axis,
-        modes_by_freq=modes_by_freq, colocate=colocate,
+        modes_by_freq=modes_by_freq, colocate=colocate, destagger_dl=destagger_dl,
     )
     if power:
         return {f: float(np.abs(a_pm) ** 2 / p_mode)
                 for f, (a_pm, p_mode) in terms.items()}
     return {f: float(np.abs(a_pm) ** 2 / p_mode ** 2)
             for f, (a_pm, p_mode) in terms.items()}
+
+
+def _is_mode(obj: Any) -> bool:
+    """A mode-like object (scalar :class:`Mode` or full-vector ``VectorMode``):
+    carries a transverse-E profile (``.field`` for scalar, ``.ex`` for vector)."""
+    return hasattr(obj, "field") or hasattr(obj, "ex")
+
+
+def _term_to_quantity(a_pm: complex, p_mode: float, quantity: str):
+    """Map one ``(a_pm, P_mode)`` overlap term to the requested readout."""
+    if quantity == "amplitude":
+        return complex(a_pm / p_mode)
+    if quantity == "power":
+        return float(np.abs(a_pm) ** 2 / p_mode)
+    # "transmission": squared normalised amplitude |c|^2 (self-overlap == 1).
+    return float(np.abs(a_pm) ** 2 / p_mode ** 2)
+
+
+def mode_decomposition(
+    sim_plane_fields: Mapping[str, xr.DataArray],
+    mode_bank: ModeBank,
+    *,
+    axis: Axis,
+    direction: Direction = "+",
+    quantity: str = "transmission",
+    center_um: Optional[Tuple[float, float]] = None,
+    thickness_axis: Optional[Axis] = None,
+    colocate: bool = True,
+    destagger_dl: Optional[float] = None,
+) -> Dict[int, Dict[float, Any]]:
+    """Multi-mode modal decomposition of a recorded plane — project it onto EACH
+    mode in ``mode_bank`` and return the per-mode result keyed ``{mode_index:
+    {freq_hz: value}}``.
+
+    This is the multi-mode / multi-frequency generalization of
+    :func:`mode_transmission` and :func:`mode_amplitude`, which project onto a
+    SINGLE mode at a time. It is the PhotonHub analogue of Tidy3D's
+    ``ModeMonitor(mode_spec=ModeSpec(num_modes=N), freqs=[...])``: the recorded
+    field on a port plane is decomposed into the guided-mode basis ``[0..N-1]``,
+    so you can read how much power leaves in each mode (and at each frequency),
+    separate the fundamental from higher-order content, and check that the modal
+    powers sum to (≤) the raw flux. Each mode index is an INDEPENDENT directional
+    projection (the modes need not be mutually orthogonal under this discretized
+    overlap; for a well-resolved guided basis they are, to the readout floor).
+
+    Parameters
+    ----------
+    sim_plane_fields:
+        The four tangential plane components, exactly as :func:`mode_transmission`
+        takes them (see that function for the per-axis key schema).
+    mode_bank:
+        The modes to project onto, in one of two forms (:data:`ModeBank`):
+
+        * **per-frequency** ``{freq_hz: {mode_index: Mode}}`` — each plane
+          frequency is projected onto the mode of that index solved AT that
+          frequency (true ``H`` + ``n_eff(λ)``), via the same nearest-frequency
+          lookup as :func:`mode_transmission`'s ``modes_by_freq``. This is the
+          dispersive, accurate case; build it with
+          :func:`~simupod.plugins.mode_devices.solve_mode_bank`. The bank must be
+          **rectangular** — the SAME mode indices at every frequency; a ragged
+          bank raises (else the nearest-frequency lookup would silently fabricate
+          a reading at a frequency missing that index).
+        * **frozen** ``{mode_index: Mode}`` — one mode per index, projected onto
+          every plane frequency (the band-centre modes).
+
+        Modes may be scalar :class:`Mode` or full-vector ``VectorMode`` (the
+        overlap kernel uses the mode's true transverse ``H`` when present, else
+        the scalar-limit reconstruction — same rule as the single-mode path).
+    direction:
+        ``"+"`` forward (default) or ``"-"`` backward — applied to every index.
+    quantity:
+        ``"transmission"`` (default) → ``|c|² = |a_pm|²/P_mode²`` (real,
+        self-overlap 1); ``"power"`` → ``|a_pm|²/P_mode`` (real modal power, the
+        quantity to ratio across unequal-mode ports); ``"amplitude"`` → the
+        complex normalised amplitude ``c = a_pm/P_mode`` (carries phase, for an
+        S-matrix / multimode-port assembler).
+    center_um, thickness_axis, colocate:
+        Forwarded unchanged to the per-mode overlap (see
+        :func:`mode_transmission`).
+
+    Returns
+    -------
+    dict[int, dict[float, value]]
+        ``{mode_index: {freq_hz: value}}`` with mode indices in ascending order
+        and ``value`` a float (``"transmission"``/``"power"``) or complex
+        (``"amplitude"``). Frequencyless planes key the inner dict on ``0.0``.
+    """
+    if quantity not in _QUANTITIES:
+        raise ValueError(
+            f"quantity must be one of {_QUANTITIES}, got {quantity!r}")
+    if not mode_bank:
+        raise ValueError("mode_bank is empty — nothing to decompose onto")
+
+    first = next(iter(mode_bank.values()))
+    out: Dict[int, Dict[float, Any]] = {}
+
+    if isinstance(first, Mapping):
+        # per-frequency form: {freq_hz: {mode_index: Mode}}.
+        index_sets = []
+        for f, inner in mode_bank.items():
+            if not isinstance(inner, Mapping):
+                raise ValueError(
+                    "mode_bank mixes per-frequency ({freq: {idx: Mode}}) and "
+                    "frozen ({idx: Mode}) forms; use one consistently")
+            for v in inner.values():
+                if not _is_mode(v):
+                    raise ValueError(
+                        "mode_bank inner values must be modes "
+                        f"({{freq: {{idx: Mode}}}}); got a {type(v).__name__} "
+                        f"at f={f}")
+            index_sets.append(frozenset(int(i) for i in inner))
+        indices = sorted(set().union(*index_sets))
+        if not indices:
+            raise ValueError(
+                "mode_bank has frequency entries but no mode indices — every "
+                "inner {idx: Mode} map is empty")
+        # Require a RECTANGULAR bank: the SAME indices at every frequency. A
+        # ragged bank (an index present at only some freqs) would make the
+        # per-index nearest-frequency lookup silently fabricate a reading at a
+        # frequency the caller never supplied that mode for (an unphysical value).
+        if any(s != index_sets[0] for s in index_sets):
+            raise ValueError(
+                f"mode_bank is ragged: every frequency must carry the SAME mode "
+                f"indices {indices} (build it with solve_mode_bank)")
+        for idx in indices:
+            mbf = {float(f): inner[idx] for f, inner in mode_bank.items()}
+            fallback = next(iter(mbf.values()))  # used only for a frequencyless plane
+            terms = _overlap_terms(
+                sim_plane_fields, fallback, axis=axis, direction=direction,
+                center_um=center_um, thickness_axis=thickness_axis,
+                modes_by_freq=mbf, colocate=colocate, destagger_dl=destagger_dl)
+            out[idx] = {f: _term_to_quantity(a, p, quantity)
+                        for f, (a, p) in terms.items()}
+        return out
+
+    if not _is_mode(first):
+        raise ValueError(
+            "mode_bank values must be either per-frequency maps "
+            "({freq: {idx: Mode}}) or modes ({idx: Mode}); "
+            f"got a {type(first).__name__}")
+    for v in mode_bank.values():
+        if not _is_mode(v):
+            raise ValueError(
+                "mode_bank mixes frozen ({idx: Mode}) and per-frequency "
+                "({freq: {idx: Mode}}) forms; use one consistently")
+    # frozen form: {mode_index: Mode} projected onto every plane frequency.
+    for idx in sorted(int(i) for i in mode_bank):
+        terms = _overlap_terms(
+            sim_plane_fields, mode_bank[idx], axis=axis, direction=direction,
+            center_um=center_um, thickness_axis=thickness_axis, colocate=colocate,
+            destagger_dl=destagger_dl)
+        out[idx] = {f: _term_to_quantity(a, p, quantity)
+                    for f, (a, p) in terms.items()}
+    return out

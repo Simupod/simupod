@@ -103,8 +103,15 @@ class TestDiscovery:
         assert find_solver() == solver
 
     def test_broken_env_var_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SIMUPOD_SOLVER", str(tmp_path / "missing"))
+        with pytest.raises(ph.SolverRunError, match="SIMUPOD_SOLVER"):
+            find_solver()
+
+    def test_legacy_env_var_still_honored(self, tmp_path, monkeypatch):
+        # back-compat: $PHOTONHUB_SOLVER is still read when $SIMUPOD_SOLVER is unset
+        monkeypatch.delenv("SIMUPOD_SOLVER", raising=False)
         monkeypatch.setenv("PHOTONHUB_SOLVER", str(tmp_path / "missing"))
-        with pytest.raises(ph.SolverRunError, match="PHOTONHUB_SOLVER"):
+        with pytest.raises(ph.SolverRunError):
             find_solver()
 
 

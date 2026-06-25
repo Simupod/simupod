@@ -146,6 +146,16 @@ class ModeSource(FrozenModel):
         default=None, json_schema_extra={"enum": ["Ex", "Ey", "Ez"]}
     )
     profile_minor: Optional[Tuple[float, ...]] = Field(default=None, min_length=1)
+    # True paired-H profiles (additive/optional). By default the engine's TF/SF
+    # E-correction uses the SCALAR-LIMIT incident H = (n_eff/η0)·E (the aux-line
+    # impedance), which is not the true mode H for a high-contrast guide and
+    # radiates ~few %. When set, `profile_h` (paired with the major E) and
+    # `profile_h_minor` (paired with the minor E, present iff `profile_minor`)
+    # carry the mode's TRUE transverse H, scaled into "E-equivalent" units
+    # (h_w·η0/n_eff) so the same aux carrier reconstructs it. Omitted ⇒ legacy
+    # scalar-limit (byte-identical wire).
+    profile_h: Optional[Tuple[float, ...]] = Field(default=None, min_length=1)
+    profile_h_minor: Optional[Tuple[float, ...]] = Field(default=None, min_length=1)
     # Broadband injection (schema 1.11.0, additive/optional — the Tidy3D
     # `num_freqs` analogue, NUMERICS.md §18.3). When `freqs_hz` is set the engine
     # injects the mode with a FREQUENCY-DEPENDENT transverse profile and phase
@@ -211,6 +221,27 @@ class ModeSource(FrozenModel):
                     f"profile_minor length {len(self.profile_minor)} != nu*nv "
                     f"({self.nu}*{self.nv})"
                 )
+        # True-H profiles: profile_h pairs the major E; profile_h_minor pairs the
+        # minor E and is present iff a minor E is.
+        if self.profile_h is not None:
+            if len(self.profile_h) != self.nu * self.nv:
+                raise ValueError(
+                    f"profile_h length {len(self.profile_h)} != nu*nv "
+                    f"({self.nu}*{self.nv})"
+                )
+            has_minor_h = self.profile_h_minor is not None
+            if has_minor_h != has_minor_pol:
+                raise ValueError(
+                    "profile_h_minor must be set iff the minor E is "
+                    "(profile_minor) for true-H injection"
+                )
+            if has_minor_h and len(self.profile_h_minor) != self.nu * self.nv:
+                raise ValueError(
+                    f"profile_h_minor length {len(self.profile_h_minor)} != "
+                    f"nu*nv ({self.nu}*{self.nv})"
+                )
+        elif self.profile_h_minor is not None:
+            raise ValueError("profile_h_minor set without profile_h")
         self._check_broadband(has_minor_pol)
         return self
 
